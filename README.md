@@ -131,8 +131,12 @@ print(f"Wilson 95% CIs:\n{result.ci()}")
 
 ## Empirical motivation
 
-The first probes — OpenMythos on K-hop, parity, and graph-reach — already
-show qualitatively different compute-scaling profiles, surfaced automatically:
+> **See [docs/findings/v0.5-openmythos.md](docs/findings/v0.5-openmythos.md)
+> for the published v0.5 probe results across all four tasks, with plots.**
+
+The first probes — OpenMythos on K-hop, parity, graph-reach, and
+state-tracking — already show qualitatively different compute-scaling
+profiles, surfaced automatically:
 
 - **K-hop**: heavy overthinking. Peak accuracy at training depth, degrades
   with more loops.

@@ -119,7 +119,7 @@ These four qualitatively different compute-scaling profiles, surfaced automatica
 - [ ] Paper-style benchmark sweep (5 models × 8 tasks × 6 compute levels with CIs)
 - [x] Contributor docs (`CONTRIBUTING.md`): how to add a Task and an Adapter
 - [x] Docker image (`depth-lens:gpu`, plus an `api` slim-image target)
-- [ ] Public leaderboard page (static HTML, GitHub Pages)
+- [x] Public findings page (`docs/findings/v0.5-openmythos.md` with committed plots). Multi-model leaderboard deferred until the API benchmark sweep runs.
 - [x] Multi-language report (`README.ja.md`, `docs/blog/intro.ja.md`)
 - [ ] arxiv writeup (optional, only if there's a real new finding worth publishing)
 
