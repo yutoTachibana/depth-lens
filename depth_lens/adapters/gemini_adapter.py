@@ -94,6 +94,10 @@ class GeminiAdapter(ModelAdapter):
         self._max_retries = max_retries
         self._request_delay = request_delay
         self._max_concurrent = max_concurrent
+        # Gemini 3.x replaces `thinking_budget` (int) with `thinking_level`
+        # (enum: low/medium/high). Detect by model name; can be flipped at
+        # runtime if the API rejects the legacy param.
+        self._use_thinking_level = "gemini-3" in model
 
     @property
     def compute_axis_name(self) -> str:
@@ -120,9 +124,14 @@ class GeminiAdapter(ModelAdapter):
         retries = 0
         while True:
             try:
+                if self._use_thinking_level:
+                    level = _budget_to_level(budget)
+                    thinking_cfg = types.ThinkingConfig(thinking_level=level)
+                else:
+                    thinking_cfg = types.ThinkingConfig(thinking_budget=budget)
                 config = types.GenerateContentConfig(
                     system_instruction=self._instructions,
-                    thinking_config=types.ThinkingConfig(thinking_budget=budget),
+                    thinking_config=thinking_cfg,
                 )
                 resp = self._client.models.generate_content(
                     model=self._model,
@@ -131,17 +140,40 @@ class GeminiAdapter(ModelAdapter):
                 )
                 text = getattr(resp, "text", "") or ""
                 final = _extract_final_answer(text)
-                return final or text, {
+                meta = {
                     "thinking_budget_tokens": budget,
                     "model": self._model,
                     "raw_text": text,
                 }
+                if self._use_thinking_level:
+                    meta["thinking_level"] = _budget_to_level(budget)
+                return final or text, meta
+            except TypeError as e:
+                # Gemini-3 -> 2.5 fallback path (or vice versa) if SDK rejects
+                # the unknown thinking param. Flip once and retry.
+                msg = str(e)
+                if "thinking_budget" in msg and not self._use_thinking_level:
+                    self._use_thinking_level = True
+                    continue
+                if "thinking_level" in msg and self._use_thinking_level:
+                    self._use_thinking_level = False
+                    continue
+                raise
             except Exception:
                 retries += 1
                 if retries > self._max_retries:
                     raise
                 wait = self._retry_seconds * (2 ** (retries - 1))
                 time.sleep(wait)
+
+
+def _budget_to_level(budget: int) -> str:
+    """Map a legacy budget_tokens value to a Gemini 3.x thinking_level enum."""
+    if budget <= 2048:
+        return "low"
+    if budget <= 8192:
+        return "medium"
+    return "high"
 
 
 def _extract_final_answer(text: str) -> str | None:
