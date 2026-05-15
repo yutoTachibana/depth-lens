@@ -28,6 +28,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   puts looped transformers + Claude/o3/Gemini extended thinking on the same
   axis, with your own data. Explicit comparison table vs LLMThinkBench,
   usail-hkust benchmark, and o1 scaling laws.
+- CLI: `--save-json` now includes `latency_per_cell` and `tokens_per_cell`.
+
+### First real-API validation — Claude Sonnet 4.6 (2026-05-16)
+End-to-end smoke of `CustomTask` + `AnthropicAdapter` succeeded:
+- 192 API calls (4 depths × 3 thinking budgets × 16 samples) in 2 min 4 s
+  total wall-clock at 8 concurrent requests.
+- Total cost: **$0.86**.
+- Sonnet 4.6 scored 1.00 across all cells — the natural-language K-hop
+  modular-arithmetic task was within ceiling.
+- **Notable finding surfaced by depth-lens**: requesting `budget_tokens=16384`
+  did NOT actually consume 16k thinking tokens. Across all 4 task depths,
+  the output expanded by only ~16-20% going from budget 1k → 16k, with
+  accuracy unchanged. Adaptive thinking on Claude is sizing compute to
+  task difficulty rather than filling the budget — meaning for tasks at or
+  below this difficulty ceiling, pushing the budget up is a strict cost
+  loss with no accuracy gain. *This is the kind of decision-changing
+  insight depth-lens is meant to make routine.*
 
 ## [0.5.0] — 2026-05-15
 

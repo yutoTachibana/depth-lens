@@ -110,6 +110,8 @@ def _dump_result_json(result: ProbeResult, path: Path) -> None:
                 ],
                 "accuracy": result.accuracy,
                 "n_per_cell": result.n_per_cell,
+                "latency_per_cell": result.latency_per_cell,
+                "tokens_per_cell": result.tokens_per_cell,
             },
             indent=2,
         )
