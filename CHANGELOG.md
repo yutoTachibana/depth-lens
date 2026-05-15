@@ -5,6 +5,18 @@ All notable changes to depth-lens will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — v1.0 milestones in progress
+- `parallel_map` thread-pool helper in `depth_lens/adapters/_concurrency.py`.
+- API adapters (Anthropic / OpenAI / Gemini) now accept a `max_concurrent`
+  kwarg and fan requests across a thread pool. A 1000-prompt probe drops
+  from sequential hours to minutes.
+- `CONTRIBUTING.md` covering how to add a Task and how to add an Adapter,
+  with the conventions used in the bundled implementations.
+- Standalone `depth-lens:gpu` and `depth-lens:api` Docker images
+  (multi-stage Dockerfile); no longer piggy-backs on the OpenMythos image.
+
 ## [0.5.0] — 2026-05-15
 
 First public-facing release. Adds API adapters, more tasks, statistical

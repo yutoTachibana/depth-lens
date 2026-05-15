@@ -115,10 +115,10 @@ These four qualitatively different compute-scaling profiles, surfaced automatica
 
 ### v1.0 — community-ready (target: +6 weeks, ¥30k–150k)
 
-- [ ] Batched / async eval (concurrent API calls)
+- [x] Batched / concurrent API eval (`parallel_map` thread-pool helper; per-adapter `max_concurrent` kwarg)
 - [ ] Paper-style benchmark sweep (5 models × 8 tasks × 6 compute levels with CIs)
-- [ ] Contributor docs: adding a Task, adding an Adapter
-- [ ] Docker image
+- [x] Contributor docs (`CONTRIBUTING.md`): how to add a Task and an Adapter
+- [x] Docker image (`depth-lens:gpu`, plus an `api` slim-image target)
 - [ ] Public leaderboard page (static HTML, GitHub Pages)
 - [ ] Multi-language report (EN + JA)
 - [ ] arxiv writeup (optional, only if there's a real new finding worth publishing)

@@ -68,6 +68,7 @@ class OpenAIAdapter(ModelAdapter):
         retry_seconds: float = 5.0,
         max_retries: int = 4,
         request_delay: float = 0.0,
+        max_concurrent: int = 8,
         adapter_label: str | None = None,
     ):
         try:
@@ -105,6 +106,7 @@ class OpenAIAdapter(ModelAdapter):
         self._retry_seconds = retry_seconds
         self._max_retries = max_retries
         self._request_delay = request_delay
+        self._max_concurrent = max_concurrent
 
     @property
     def compute_axis_name(self) -> str:
@@ -117,16 +119,18 @@ class OpenAIAdapter(ModelAdapter):
         ]
 
     def predict(self, prompts: list[str], compute: ComputeLevel) -> list[Prediction]:
+        from depth_lens.adapters._concurrency import parallel_map
+
         # Parse effort from the label "effort=<x>".
         effort = compute.label.split("=", 1)[1] if "=" in compute.label else "medium"
 
-        out: list[Prediction] = []
-        for prompt in prompts:
+        def one(prompt: str) -> Prediction:
             text, meta = self._one_call(prompt, effort=effort)
-            out.append(Prediction(text=text, metadata=meta))
             if self._request_delay:
                 time.sleep(self._request_delay)
-        return out
+            return Prediction(text=text, metadata=meta)
+
+        return parallel_map(one, prompts, max_workers=self._max_concurrent)
 
     def _one_call(self, prompt: str, *, effort: str) -> tuple[str, dict]:
         openai = self._openai

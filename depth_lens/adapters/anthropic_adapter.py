@@ -62,6 +62,7 @@ class AnthropicAdapter(ModelAdapter):
         retry_seconds: float = 5.0,
         max_retries: int = 4,
         request_delay: float = 0.0,
+        max_concurrent: int = 8,
         adapter_label: str | None = None,
     ):
         try:
@@ -98,6 +99,7 @@ class AnthropicAdapter(ModelAdapter):
         self._retry_seconds = retry_seconds
         self._max_retries = max_retries
         self._request_delay = request_delay
+        self._max_concurrent = max_concurrent
 
     @property
     def compute_axis_name(self) -> str:
@@ -107,16 +109,18 @@ class AnthropicAdapter(ModelAdapter):
         return [ComputeLevel(v, f"think={v}") for v in self._compute_grid]
 
     def predict(self, prompts: list[str], compute: ComputeLevel) -> list[Prediction]:
+        from depth_lens.adapters._concurrency import parallel_map
+
         budget = int(compute.value)
-        # max_tokens must be > budget for the API.
         max_out = max(self._max_tokens, budget + 512)
-        results: list[Prediction] = []
-        for prompt in prompts:
+
+        def one(prompt: str) -> Prediction:
             text, meta = self._one_call(prompt, budget=budget, max_out=max_out)
-            results.append(Prediction(text=text, metadata=meta))
             if self._request_delay:
                 time.sleep(self._request_delay)
-        return results
+            return Prediction(text=text, metadata=meta)
+
+        return parallel_map(one, prompts, max_workers=self._max_concurrent)
 
     def _one_call(self, prompt: str, *, budget: int, max_out: int) -> tuple[str, dict]:
         anthropic = self._anthropic
