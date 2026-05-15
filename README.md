@@ -1,112 +1,144 @@
 # depth-lens
 
-> Measure and visualize **reasoning depth** across model families.
+> The only tool that compares **looped transformers, Claude extended thinking,
+> o-series reasoning, and Gemini thinking modes on the same accuracy-vs-compute
+> axis — using your own data.**
+>
 > [日本語版](./README.ja.md)
 
-Modern reasoning systems — looped transformers (OpenMythos, Parcae), extended-thinking
-APIs (Claude, o-series, Gemini), agentic loops — spend variable amounts of inference-time
-compute per query. Standard benchmarks like MMLU and GSM8K collapse that axis.
-**depth-lens makes it legible.** Point it at any reasoning system and get back
-an accuracy-vs-compute curve with confidence intervals, an effective-depth
-estimate, and an overthinking detector — comparable across model families.
-
-Pre-alpha. v0.5 in progress. See [ROADMAP.md](./ROADMAP.md) for the plan and
-the empirical findings that motivated it.
-
-## What you get
-
-- A **probe engine** that sweeps task depth × compute budget for any wrapped
-  model and produces an accuracy curve with Wilson 95% confidence intervals.
-- A **library of bounded-depth tasks**: K-hop modular composition, binary
-  parity, multi-hop graph reachability — each instance has a controllable
-  depth axis so you can ask "how far does this model extrapolate?"
-- **Adapters** for OpenMythos (looped transformer), HuggingFace causal LMs
-  (CoT-token budget), Anthropic Claude extended thinking, OpenAI o-series
-  reasoning effort, and Google Gemini thinking mode.
-- **Auto-detected diagnostics**: `effective_depth`, per-depth overthinking
-  detection, peak-compute reports.
-- An **interactive Streamlit dashboard** to browse all your cached probe runs.
-- A **disk cache** so iterating on plots doesn't re-run expensive probes.
-
-## Install
-
-Requires Python 3.11+.
+Everyone shipping a reasoning model in 2026 exposes a "how hard to think" knob:
+Anthropic's `thinking_budget`, OpenAI's `reasoning_effort`, Gemini's
+`thinking_budget`, OpenMythos's `n_loops`. Setting that knob right matters for
+both accuracy and cost — but standard benchmarks (MMLU, GSM8K) collapse the
+axis. The math-focused [LLMThinkBench](https://github.com/ctrl-gaurav/LLMThinkBench)
+gives you one number per model at a fixed operating point. **depth-lens
+gives you the curve, on your task, across vendors.**
 
 ```bash
-git clone https://github.com/yutoTachibana/depth-lens.git
-cd depth-lens
-pip install -e .[openmythos,huggingface,anthropic,openai,gemini,dashboard]
+pip install -e .[anthropic,openai,gemini,huggingface]
+
+# Bring your own JSONL: {"prompt": "...", "target": "...", "depth": 4} per line.
+depth-lens probe \
+    --model anthropic:claude-opus-4-7 \
+    --task custom:./my_eval.jsonl:first_int \
+    --compute 1024,2048,4096,8192,16384 \
+    --n-samples 64 \
+    --plot probe.png
 ```
 
-Pick only the extras you need. Local probes on OpenMythos / HuggingFace work
-with a CUDA GPU; API adapters need the corresponding `*_API_KEY`.
+```
+effective depth (≥0.5 acc at some compute): 6
+overthinking @ depth 4: peak=think=4096 (acc=0.94)  →  last=think=16384 (acc=0.71)
 
-## Quick start
+cost @ peak compute: $0.018 / prediction
+cost @ last compute: $0.092 / prediction  (5.1× cost for −0.23 accuracy)
+```
 
-### 1. Probe a single model
+You now have a defensible answer to *"how much should we let Claude think on
+this task?"* — backed by a sweep on your real data with confidence intervals.
 
-Train a tiny OpenMythos on the K-hop task (~7 min on a consumer GPU), then
-sweep loop count × task depth:
+## What's the niche, exactly?
+
+| | LLMThinkBench | usail-hkust bench | o1 scaling laws | **depth-lens** |
+|---|---|---|---|---|
+| Compute-axis curves (not single point) | ❌ | partial | ✅ (o1 only) | **✅** |
+| Cross-vendor (Claude / o3 / Gemini / OSS) | ❌ HF only | partial | ❌ o1 only | **✅** |
+| Looped transformer (OpenMythos) | ❌ | ❌ | ❌ | **✅** |
+| Bring-your-own JSONL | ❌ | ❌ | ❌ | **✅** |
+| Cost per prediction with sweep | ❌ | ❌ | ❌ | **✅** |
+| Bounded-depth synthetic probes (K-hop, parity, …) | ❌ | partial | ❌ | **✅** |
+
+depth-lens is the **measurement tool you reach for once you've already picked a
+model and need to decide how much to spend per query** — on your real workload.
+
+## Quickstart for API users
+
+You have a CSV of test prompts and you want to know: at what thinking budget
+does Claude/o3/Gemini start "overthinking" on this task, and what does that
+cost?
+
+1. Convert to JSONL with one `{"prompt", "target"}` per line (and optional
+   `"depth"` if your prompts have a difficulty axis).
+2. Run a sweep:
+
+   ```bash
+   depth-lens probe \
+       --model anthropic:claude-opus-4-7 \
+       --task custom:./my_eval.jsonl:first_int \
+       --compute 1024,4096,16384 \
+       --n-samples 32 \
+       --save-json result.json
+   ```
+
+3. The console summary tells you the sweet spot. Plug that into your
+   production call:
+
+   ```python
+   client.messages.create(
+       model="claude-opus-4-7",
+       thinking={"type": "enabled", "budget_tokens": 4096},  # what depth-lens found
+       ...
+   )
+   ```
+
+## Quickstart for researchers
 
 ```bash
 depth-lens probe \
-    --model openmythos \
-    --task k-hop \
-    --depths 2,3,4,5,6,7,8,10 \
+    --model openmythos --task k-hop \
+    --depths 2,3,4,5,6,7,8 \
     --compute 1,2,4,8,16 \
     --train-steps 5000 \
-    --save-checkpoint runs/openmythos.pt \
-    --plot runs/probe_openmythos.png
+    --plot probe.png
 ```
 
-You'll get a console summary and a curve plot. Example output:
+Trains a 925K-param OpenMythos on K-hop modular composition (~7 min on a
+consumer GPU), then sweeps loop count × task depth. Bundled probes
+(`k-hop`, `parity`, `graph-reach`, `state-tracking`) all expose a controllable
+depth axis so you can study extrapolation.
 
-```
-effective depth (≥0.5 acc at some compute): 7
-overthinking @ depth 4: peak=n_loops=4 (acc=1.00)  →  last=n_loops=16 (acc=0.87)
-overthinking @ depth 7: peak=n_loops=4 (acc=0.92)  →  last=n_loops=16 (acc=0.45)
-```
+Findings from the bundled probes:
+[**docs/findings/v0.5-openmythos.md**](docs/findings/v0.5-openmythos.md)
 
-The task suite generalises: swap `k-hop` for `parity` or `graph-reach`.
-
-### 2. Compare models on the same task
+## Compare models on the same task
 
 ```bash
 depth-lens compare \
     --models openmythos,hf:Qwen/Qwen2.5-1.5B-Instruct,anthropic:claude-opus-4-7 \
-    --task k-hop \
-    --depths 2,4,6,8 \
-    --checkpoint runs/openmythos.pt \
-    --plot runs/compare.png
+    --task custom:./my_eval.jsonl:first_int \
+    --plot compare.png
 ```
 
-Each adapter's native compute knob (n_loops, max_thinking_tokens, thinking
-budget, reasoning effort) is plotted on its own axis, with one panel per task
-depth so you can see where each model saturates.
+Each adapter plots its own compute knob on its own axis, side-by-side per
+task depth.
 
-### 3. Browse cached probes interactively
+## Browse cached runs
 
 ```bash
 depth-lens dashboard
 ```
 
-Streamlit picks up every probe you've already cached and lets you filter by
-adapter and task, see curves with CIs, heatmaps, and overthinking reports.
+Streamlit picks up every probe you've already cached and lets you filter,
+overlay curves, view heatmaps, and read the auto-generated overthinking
+report.
 
 ## Python API
 
 ```python
 from depth_lens import probe
 from depth_lens.tasks import get_task
-from depth_lens.adapters.openmythos_adapter import train_for_task, TrainConfig
 
-task = get_task("parity")
-adapter = train_for_task(task, cfg=TrainConfig(steps=2000))
+task = get_task("custom:./my_eval.jsonl:first_int")
+adapter = ...   # any ModelAdapter — see CONTRIBUTING.md for the interface
 
-result = probe(adapter, task, depths=[2, 4, 6, 8], n_samples=128)
+result = probe(adapter, task, depths=task.available_depths(), n_samples=64)
+
 print(f"effective depth: {result.effective_depth(0.5)}")
-print(f"overthinking @ d=8: {result.overthinking(8)}")
+print(f"overthinking @ d=4: {result.overthinking(4)}")
 print(f"Wilson 95% CIs:\n{result.ci()}")
+
+# Cost per prediction (Claude Opus 4.6 approx pricing):
+print(result.cost_per_cell({"input": 15.0, "output": 75.0}))
 ```
 
 ## Built-in adapters
@@ -114,45 +146,47 @@ print(f"Wilson 95% CIs:\n{result.ci()}")
 | Spec | Compute knob | Notes |
 |---|---|---|
 | `openmythos` | `n_loops` | Trains a small model on the task if no checkpoint is supplied. |
-| `hf:<hf-model-id>` | `max_thinking_tokens` | Wraps any HF causal LM with a CoT prompt. Uses the model's chat template when available. |
+| `hf:<hf-model-id>` | `max_thinking_tokens` | Any HF causal LM with a CoT prompt; auto-uses chat template. |
 | `anthropic:<model>` | `thinking_budget_tokens` | Claude extended thinking. Requires `ANTHROPIC_API_KEY`. |
-| `openai:<model>` | `reasoning_effort` | o-series effort (low / medium / high). Requires `OPENAI_API_KEY`. |
-| `gemini:<model>` | `thinking_budget_tokens` | Gemini 2.5 thinking. Requires `GOOGLE_API_KEY`. |
-| `vllm:<model>` | `reasoning_effort` | OpenAI-compatible local server (vLLM / SGLang / TGI). Set `VLLM_BASE_URL` (default `http://localhost:8000/v1`). |
+| `openai:<model>` | `reasoning_effort` | o-series effort (low/medium/high). `OPENAI_API_KEY`. |
+| `gemini:<model>` | `thinking_budget_tokens` | Gemini 2.5 thinking. `GOOGLE_API_KEY`. |
+| `vllm:<model>` | `reasoning_effort` | OpenAI-compatible local server. Set `VLLM_BASE_URL`. |
+
+API adapters fan requests across a thread pool (`max_concurrent` kwarg) so
+1000-prompt probes finish in minutes, not hours.
 
 ## Built-in tasks
 
-| Task | Depth axis | Description |
+| Task | Depth axis | Use |
 |---|---|---|
-| `k-hop` | K (number of operators) | Modular composition on Z/23Z with additive + multiplicative permutations. Saunshi-style latent-CoT probe. |
-| `parity` | n (number of bits) | XOR over a length-n bit string. Classic state-tracking task. |
-| `graph-reach` | path length | Yes/no reachability on a small DAG, balanced positives/negatives. |
-| `state-tracking` | K (instructions) | Two-counter register machine (inc1, inc2, swap, add) with a final query. Vector-valued state. |
+| `custom:<jsonl>:<scorer>` | optional `depth` field | **Bring your own data.** Scorers: `exact`, `first_int`, `last_int`, `yes_no`, `contains`, `regex:<p>`. |
+| `k-hop` | K (operators) | Modular composition on Z/23Z. Latent-CoT probe. |
+| `parity` | n (bits) | XOR over n bits. State-tracking minimal case. |
+| `graph-reach` | path length | Yes/no DAG reachability. Balanced positives/negatives. |
+| `state-tracking` | K (instructions) | Two-counter register machine (inc1, inc2, swap, add). |
 
-## Empirical motivation
+## Install
 
-> **See [docs/findings/v0.5-openmythos.md](docs/findings/v0.5-openmythos.md)
-> for the published v0.5 probe results across all four tasks, with plots.**
+```bash
+git clone https://github.com/yutoTachibana/depth-lens.git
+cd depth-lens
 
-The first probes — OpenMythos on K-hop, parity, graph-reach, and
-state-tracking — already show qualitatively different compute-scaling
-profiles, surfaced automatically:
+# API-only — no GPU needed
+pip install -e .[anthropic,openai,gemini,dashboard]
 
-- **K-hop**: heavy overthinking. Peak accuracy at training depth, degrades
-  with more loops.
-- **Parity**: monotonic improvement up to training depth, then flat. No
-  overthinking.
-- **Graph-reach**: loops produce no improvement; model saturates at ~0.70
-  heuristic accuracy and collapses at K_test > K_train_max.
+# +looped transformer + HuggingFace local probes
+pip install -e .[openmythos,huggingface,anthropic,openai,gemini,dashboard]
+```
 
-These are exactly the kinds of facts that a depth-aware benchmark should
-surface — and that MMLU-style scores cannot.
+Python 3.11+. The bundled OpenMythos training helper assumes CUDA; everything
+else is happy on CPU or against remote APIs.
 
 ## Status
 
-- [x] **v0.1 MVP** — K-hop, OpenMythos + HF adapters, static plots, CLI
-- [x] **v0.5 (in progress)** — +parity & graph-reach, +Anthropic/OpenAI/Gemini adapters, Wilson CIs, cache, Streamlit dashboard
-- [ ] **v1.0** — cross-vendor benchmark, paper, PyPI release
+- [x] **v0.1 MVP**
+- [x] **v0.5** — 4 tasks, 6 adapters, Wilson CIs, cache, Streamlit dashboard
+- [x] **v1.0 (in progress)** — concurrent API eval, CONTRIBUTING, multi-stage Docker, JA docs, CustomTask + cost tracking
+- [ ] **v1.0 final** — cross-vendor benchmark figure, PyPI publish
 
 ## License
 

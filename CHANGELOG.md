@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the conventions used in the bundled implementations.
 - Standalone `depth-lens:gpu` and `depth-lens:api` Docker images
   (multi-stage Dockerfile); no longer piggy-backs on the OpenMythos image.
+- **`CustomTask`**: bring your own JSONL of `{prompt, target, depth?}` and
+  probe it with any adapter. Pluggable scorers: `exact`, `first_int`,
+  `last_int`, `yes_no`, `contains`, `regex:<pattern>`. Addressable as
+  `custom:<path>:<scorer>` everywhere. This is the headline practical
+  feature for API users tuning thinking budgets on their own workload.
+- **Cost & latency tracking**: `probe()` now records per-cell median wall-clock
+  latency and aggregates `input` / `output` / `thinking` token usage from
+  adapter metadata. `ProbeResult.cost_per_cell(pricing)` returns $/prediction.
+- README rewritten with sharper positioning: depth-lens is *the* tool that
+  puts looped transformers + Claude/o3/Gemini extended thinking on the same
+  axis, with your own data. Explicit comparison table vs LLMThinkBench,
+  usail-hkust benchmark, and o1 scaling laws.
 
 ## [0.5.0] — 2026-05-15
 

@@ -88,6 +88,8 @@ def _serialize(r: ProbeResult) -> dict:
         "compute_grid": [{"value": c.value, "label": c.label} for c in r.compute_grid],
         "accuracy": r.accuracy,
         "n_per_cell": r.n_per_cell,
+        "latency_per_cell": r.latency_per_cell,
+        "tokens_per_cell": r.tokens_per_cell,
     }
 
 
@@ -100,4 +102,6 @@ def _deserialize(data: dict) -> ProbeResult:
         compute_grid=[ComputeLevel(c["value"], c["label"]) for c in data["compute_grid"]],
         accuracy=data["accuracy"],
         n_per_cell=data["n_per_cell"],
+        latency_per_cell=data.get("latency_per_cell"),
+        tokens_per_cell=data.get("tokens_per_cell"),
     )
