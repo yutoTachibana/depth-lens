@@ -223,6 +223,15 @@ def probe_cmd(
 @click.option("--n-samples", default=128, type=int)
 @click.option("--batch-size", default=32, type=int)
 @click.option("--seed", default=0, type=int)
+@click.option(
+    "--compute",
+    default=None,
+    help=(
+        "Comma-separated integer compute levels applied to every adapter "
+        "(useful when you want a shared x-axis across vendors). "
+        "Default: each adapter's own grid."
+    ),
+)
 @click.option("--plot", default="compare.png", type=click.Path(dir_okay=False))
 @click.option(
     "--save-json",
@@ -241,6 +250,7 @@ def compare_cmd(
     n_samples: int,
     batch_size: int,
     seed: int,
+    compute: str | None,
     plot: str,
     save_json: str | None,
     checkpoint: str | None,
@@ -263,10 +273,12 @@ def compare_cmd(
             checkpoint=checkpoint if spec == "openmythos" else None,
             train_steps=train_steps,
         )
+        compute_grid = _parse_compute(compute, adapter.compute_axis_name)
         r = probe(
             adapter=adapter,
             task=task_obj,
             depths=depths_list,
+            compute_grid=compute_grid,
             n_samples=n_samples,
             batch_size=batch_size,
             seed=seed,
@@ -293,6 +305,8 @@ def compare_cmd(
                     ],
                     "accuracy": r.accuracy,
                     "n_per_cell": r.n_per_cell,
+                    "latency_per_cell": r.latency_per_cell,
+                    "tokens_per_cell": r.tokens_per_cell,
                 }
             )
         Path(save_json).write_text(json.dumps(out, indent=2))

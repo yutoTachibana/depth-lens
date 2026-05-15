@@ -100,6 +100,11 @@ class AnthropicAdapter(ModelAdapter):
         self._max_retries = max_retries
         self._request_delay = request_delay
         self._max_concurrent = max_concurrent
+        # Some newer models (e.g. claude-opus-4-7) replaced thinking.type=enabled
+        # with thinking.type=adaptive + output_config.effort. We detect this
+        # on the first 400 from the API and switch modes for the rest of the
+        # adapter's lifetime.
+        self._use_adaptive = False
 
     @property
     def compute_axis_name(self) -> str:
@@ -127,13 +132,20 @@ class AnthropicAdapter(ModelAdapter):
         retries = 0
         while True:
             try:
-                resp = self._client.messages.create(
-                    model=self._model,
-                    max_tokens=max_out,
-                    system=self._instructions,
-                    messages=[{"role": "user", "content": prompt}],
-                    thinking={"type": "enabled", "budget_tokens": budget},
-                )
+                kwargs: dict = {
+                    "model": self._model,
+                    "max_tokens": max_out,
+                    "system": self._instructions,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                if self._use_adaptive:
+                    effort = _budget_to_effort(budget)
+                    kwargs["thinking"] = {"type": "adaptive"}
+                    # output_config is not a typed param in older SDKs — slip it through.
+                    kwargs["extra_body"] = {"output_config": {"effort": effort}}
+                else:
+                    kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                resp = self._client.messages.create(**kwargs)
                 text_block = "".join(
                     b.text for b in resp.content if getattr(b, "type", "") == "text"
                 )
@@ -142,22 +154,41 @@ class AnthropicAdapter(ModelAdapter):
                     for b in resp.content
                     if getattr(b, "type", "") == "thinking"
                 )
-                # Adapter returns just the final-answer text (already parsed) so
-                # the task's lenient scorer can extract it cleanly.
                 final = _extract_final_answer(text_block)
-                return final or text_block, {
+                meta = {
                     "thinking_budget_tokens": budget,
                     "model": self._model,
                     "raw_text": text_block,
                     "thinking_chars": len(thinking_block),
                     "usage": getattr(resp, "usage", None).__dict__ if getattr(resp, "usage", None) else None,
                 }
-            except (anthropic.RateLimitError, anthropic.APIStatusError) as e:
+                if self._use_adaptive:
+                    meta["adaptive_effort"] = _budget_to_effort(budget)
+                return final or text_block, meta
+            except anthropic.BadRequestError as e:
+                # Newer-model migration path. Every concurrent worker may hit
+                # this 400 once before the adapter has been flipped, so retry
+                # unconditionally on the specific message (idempotent flag set).
+                msg = str(e)
+                if "thinking.type.enabled" in msg and "not supported" in msg:
+                    self._use_adaptive = True
+                    continue
+                raise
+            except (anthropic.RateLimitError, anthropic.APIStatusError):
                 retries += 1
                 if retries > self._max_retries:
                     raise
                 wait = self._retry_seconds * (2 ** (retries - 1))
                 time.sleep(wait)
+
+
+def _budget_to_effort(budget: int) -> str:
+    """Map a legacy budget_tokens value to the adaptive-API effort level."""
+    if budget <= 2048:
+        return "low"
+    if budget <= 8192:
+        return "medium"
+    return "high"
 
 
 def _extract_final_answer(text: str) -> str | None:

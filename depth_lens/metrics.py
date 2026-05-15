@@ -256,10 +256,14 @@ def probe(
                     batch_latencies.append(dt / len(preds))
                 scores = task.score_batch(batch, [p.text for p in preds])
                 correct += int(sum(scores))
-                # Aggregate token usage if adapter reports it.
+                # Aggregate token usage if adapter reports it. (Note: this
+                # loop variable was previously named `key`, which shadowed the
+                # outer `cache_key` variable — the cache then wrote every probe
+                # to "thinking.json" because that's the last dict key seen.)
                 for p in preds:
-                    for key in _extract_token_usage(p.metadata):
-                        tok_sums[key] = tok_sums.get(key, 0) + _extract_token_usage(p.metadata)[key]
+                    usage = _extract_token_usage(p.metadata)
+                    for usage_key, usage_val in usage.items():
+                        tok_sums[usage_key] = tok_sums.get(usage_key, 0) + usage_val
                     n_seen += 1
             row.append(correct / n_samples)
             lat = median(batch_latencies) if batch_latencies else 0.0
