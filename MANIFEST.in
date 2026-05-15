@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include ROADMAP.md
+recursive-include depth_lens *.py
+recursive-include examples *.ipynb
+recursive-include docs *.md
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude .DS_Store
