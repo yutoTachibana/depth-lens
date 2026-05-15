@@ -98,7 +98,8 @@ consumer GPU), then sweeps loop count × task depth. Bundled probes
 depth axis so you can study extrapolation.
 
 Findings from the bundled probes:
-[**docs/findings/v0.5-openmythos.md**](docs/findings/v0.5-openmythos.md)
+- [**v1.0 cross-vendor summary**](docs/findings/v1.0-cross-vendor-summary.md) — Anthropic vs OpenAI vs Gemini on graded K-hop, with cost/latency
+- [v0.5 OpenMythos across 4 tasks](docs/findings/v0.5-openmythos.md)
 
 ## Compare models on the same task
 
