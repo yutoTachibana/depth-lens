@@ -120,7 +120,7 @@ These four qualitatively different compute-scaling profiles, surfaced automatica
 - [x] Contributor docs (`CONTRIBUTING.md`): how to add a Task and an Adapter
 - [x] Docker image (`depth-lens:gpu`, plus an `api` slim-image target)
 - [ ] Public leaderboard page (static HTML, GitHub Pages)
-- [ ] Multi-language report (EN + JA)
+- [x] Multi-language report (`README.ja.md`, `docs/blog/intro.ja.md`)
 - [ ] arxiv writeup (optional, only if there's a real new finding worth publishing)
 
 ---

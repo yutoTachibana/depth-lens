@@ -1,6 +1,7 @@
 # depth-lens
 
 > Measure and visualize **reasoning depth** across model families.
+> [日本語版](./README.ja.md)
 
 Modern reasoning systems — looped transformers (OpenMythos, Parcae), extended-thinking
 APIs (Claude, o-series, Gemini), agentic loops — spend variable amounts of inference-time

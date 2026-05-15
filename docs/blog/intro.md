@@ -2,6 +2,8 @@
 
 *Introducing depth-lens — a measurement toolkit for inference-time-compute scaling.*
 
+[日本語版](./intro.ja.md)
+
 ---
 
 Reasoning models are starting to share a strange new property: **how much you
