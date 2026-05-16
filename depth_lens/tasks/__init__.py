@@ -4,6 +4,7 @@ from depth_lens.tasks.base import ProbeInstance, Task
 from depth_lens.tasks.custom import CustomTask
 from depth_lens.tasks.graph_reach import GraphReachabilityTask
 from depth_lens.tasks.k_hop import KHopTask
+from depth_lens.tasks.mini_csp import MiniCSPTask
 from depth_lens.tasks.parity import ParityTask
 from depth_lens.tasks.state_tracking import StateTrackingTask
 
@@ -41,6 +42,7 @@ def get_task(name: str) -> Task:
         ParityTask.name: ParityTask,
         GraphReachabilityTask.name: GraphReachabilityTask,
         StateTrackingTask.name: StateTrackingTask,
+        MiniCSPTask.name: MiniCSPTask,
     }
     if name not in registry:
         raise KeyError(f"Unknown task {name!r}. Known: {sorted(registry)} (or 'custom:<jsonl>')")
@@ -51,6 +53,7 @@ __all__ = [
     "CustomTask",
     "GraphReachabilityTask",
     "KHopTask",
+    "MiniCSPTask",
     "ParityTask",
     "ProbeInstance",
     "StateTrackingTask",

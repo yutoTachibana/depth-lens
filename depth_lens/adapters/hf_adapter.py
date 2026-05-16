@@ -67,6 +67,14 @@ _TASK_INSTRUCTIONS: dict[str, str] = {
         "Apply the operators left to right. The prompt ends with `query <i>` (i is 1 or 2); "
         "report the final value of C<i>. On the final line write exactly `Final answer: <integer>`."
     ),
+    "mini-csp": (
+        "You are deciding whether a small 2-SAT Boolean formula is satisfiable. "
+        "The prompt lists Boolean variables (single letters) and a conjunction of "
+        "2-literal clauses written as `( a OR NOT b )`. Your job is to determine "
+        "whether *any* assignment of true/false to the variables makes every "
+        "clause true. Reason step by step (try assignments or use unit propagation), "
+        "then on the final line write exactly `Final answer: yes` or `Final answer: no`."
+    ),
 }
 
 

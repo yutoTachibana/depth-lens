@@ -41,6 +41,12 @@ _TASK_INSTRUCTIONS: dict[str, str] = {
         "Decide whether the goal node is reachable from the start node in the directed graph. "
         "On the final line write exactly `Final answer: yes` or `Final answer: no`."
     ),
+    "mini-csp": (
+        "Decide whether the small 2-SAT Boolean formula is satisfiable. The prompt "
+        "lists Boolean variables and a conjunction of 2-literal clauses. Determine "
+        "whether any assignment makes every clause true. On the final line write "
+        "exactly `Final answer: yes` or `Final answer: no`."
+    ),
 }
 
 
