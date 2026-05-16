@@ -75,12 +75,14 @@ I use on this task?"* — backed by a real sweep with confidence intervals.
 ## Real findings the tool has produced
 
 We ran depth-lens on every vendor we could get an API key for, on all 5
-bundled tasks. Total spend: **~$11**. Time invested: **a single session**.
+bundled tasks — current generation **and** one generation back to keep
+the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
+**a single session**.
 
 | Finding | Why it matters |
 |---|---|
 | [Haiku 4.5 collapses on hard 2-SAT at default budget](docs/findings/v1.0-mini-csp-cross-vendor.md) | If you use Haiku for constraint-style problems, set `budget≥4096` or pay 2× error rate |
-| [Gemini 2.5 Flash → 3.1 Flash-Lite is the biggest leap of the 2025-26 generation](docs/findings/v1.0-gemini-3.x-cross-vendor.md) | Cheap-tier benchmarks done before May 2026 are now obsolete |
+| [Gemini 2.5 Flash was uniquely weak vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced) | When we tested 2025-era models from all 3 vendors, Anthropic Sonnet 4 (May 2025) and o3-mini (Jan 2025) were already at ceiling on K-hop. Only Gemini Flash collapsed. 3.1 Flash-Lite closes the gap. |
 | [Claude Opus 4.7 cost varies 10× across (depth × budget) at fixed accuracy](docs/findings/v1.0-anthropic-cross-vendor.md) | Maxing the budget is a strict cost loss for many task classes |
 | [OpenAI gpt-5-mini is cheaper-per-token but 3× slower than o4-mini](docs/findings/v1.0-openai-cross-vendor.md) | Latency-sensitive paths should pick o4-mini |
 | [OpenMythos (looped transformer) extrapolates 1-2 hops past training depth](docs/findings/v0.5-openmythos.md) | Architecture-specific finding from the experiment that motivated the project |
