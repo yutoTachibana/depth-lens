@@ -348,5 +348,155 @@ def dashboard_cmd(port: int):
     )
 
 
+# ---------------------------------------------------------------------------
+# recommend — production model picker
+# ---------------------------------------------------------------------------
+
+
+@cli.command("recommend")
+@click.option(
+    "--models", "-m", required=True,
+    help="Comma-separated candidate model specs (e.g., 'anthropic:claude-haiku-4-5,anthropic:claude-sonnet-4-6,openai:o4-mini').",
+)
+@click.option("--task", "-t", required=True, help="Task name or 'custom:<jsonl>:<scorer>'.")
+@click.option(
+    "--target-accuracy", "-a", required=True, type=float,
+    help="Minimum accuracy required (e.g., 0.95).",
+)
+@click.option("--depths", default=None, help="Comma-separated task depths (default: all available in custom JSONL, else 4).")
+@click.option("--compute", default=None, help="Comma-separated compute levels (default: each adapter's own grid).")
+@click.option("--n-samples", default=64, type=int, help="Samples per cell.")
+@click.option("--batch-size", default=8, type=int)
+@click.option("--seed", default=0, type=int)
+@click.option("--pricing", default=None, type=click.Path(dir_okay=False), help="Optional JSON pricing override.")
+@click.option("--daily-calls", default=None, type=int, help="If set, show projected daily / yearly cost at this volume.")
+def recommend_cmd(
+    models: str,
+    task: str,
+    target_accuracy: float,
+    depths: str | None,
+    compute: str | None,
+    n_samples: int,
+    batch_size: int,
+    seed: int,
+    pricing: str | None,
+    daily_calls: int | None,
+):
+    """
+    Find the cheapest model + compute setting that meets your accuracy bar.
+
+    Probes every (model, compute) combination on your task and ranks the
+    passing ones by $/prediction. Standard production workflow:
+
+    \b
+        depth-lens recommend \\
+            --models anthropic:claude-haiku-4-5,anthropic:claude-sonnet-4-6,anthropic:claude-opus-4-7 \\
+            --task custom:./my_eval.jsonl:first_int \\
+            --target-accuracy 0.95 \\
+            --daily-calls 10000
+    """
+    from depth_lens.pricing import get_pricing, load_pricing_file
+
+    pricing_override = load_pricing_file(pricing) if pricing else None
+
+    task_obj = get_task(task)
+
+    # Resolve depths
+    if depths:
+        depths_list = [int(x) for x in depths.split(",") if x.strip()]
+    elif hasattr(task_obj, "available_depths"):
+        depths_list = task_obj.available_depths()
+    else:
+        depths_list = [4]
+
+    model_specs = [m.strip() for m in models.split(",") if m.strip()]
+
+    rows: list[dict] = []
+    for spec in model_specs:
+        click.echo(f"\n=== {spec} ===")
+        if get_pricing(spec, pricing_override) is None:
+            click.echo(
+                f"  [warn] no pricing for {spec}; cost columns will be blank. "
+                f"Provide --pricing to override."
+            )
+        adapter = _build_adapter(spec, task)
+        compute_grid = _parse_compute(compute, adapter.compute_axis_name)
+        r = probe(
+            adapter=adapter,
+            task=task_obj,
+            depths=depths_list,
+            compute_grid=compute_grid,
+            n_samples=n_samples,
+            batch_size=batch_size,
+            seed=seed,
+        )
+        price = get_pricing(spec, pricing_override)
+        cost_grid = r.cost_per_cell(price) if price else None
+        for di, d in enumerate(r.depths):
+            for ci, c in enumerate(r.compute_grid):
+                acc = r.accuracy[di][ci]
+                cost = float(cost_grid[di, ci]) if cost_grid is not None else None
+                rows.append({
+                    "model": spec,
+                    "depth": d,
+                    "compute": c.label,
+                    "accuracy": acc,
+                    "cost_per_pred": cost,
+                    "passes": acc >= target_accuracy,
+                })
+        adapter.teardown()
+
+    passing = [r for r in rows if r["passes"]]
+    failing = [r for r in rows if not r["passes"]]
+    passing.sort(key=lambda r: (r["cost_per_pred"] if r["cost_per_pred"] is not None else float("inf")))
+
+    click.echo("")
+    click.echo("=" * 88)
+    click.echo(f"Target accuracy ≥ {target_accuracy:.2f}")
+    click.echo(f"Probed {len(rows)} configurations, {len(passing)} passing.")
+    click.echo("=" * 88)
+
+    def _fmt(r):
+        cost = "(no pricing)" if r["cost_per_pred"] is None else f"${r['cost_per_pred']*1000:.3f}/k-pred"
+        return f"  {r['model']:<42s}  d={r['depth']:<2d}  {r['compute']:<28s} acc={r['accuracy']:.2f}  {cost}"
+
+    if passing:
+        click.echo("\n✅ Passing (cheapest first):")
+        for r in passing[:10]:
+            tag = "  ← cheapest" if r is passing[0] and r["cost_per_pred"] is not None else ""
+            click.echo(_fmt(r) + tag)
+        if len(passing) > 10:
+            click.echo(f"  … and {len(passing) - 10} more")
+    else:
+        click.echo("\n❌ No configuration met the accuracy bar.")
+        if failing:
+            click.echo("  Closest attempts:")
+            failing.sort(key=lambda r: -r["accuracy"])
+            for r in failing[:5]:
+                click.echo(_fmt(r))
+
+    if passing and daily_calls is not None and passing[0]["cost_per_pred"] is not None:
+        cheapest = passing[0]
+        daily_cost = cheapest["cost_per_pred"] * daily_calls
+        yearly = daily_cost * 365
+        click.echo("")
+        click.echo("=" * 88)
+        click.echo(f"At {daily_calls:,} calls/day with the cheapest passing config:")
+        click.echo(f"  {cheapest['model']} @ {cheapest['compute']}")
+        click.echo(f"  → ${daily_cost:.2f}/day  ${yearly:,.0f}/year")
+
+        # If a more-expensive passing option exists, show savings vs it
+        most_expensive_passing = max(passing, key=lambda r: r["cost_per_pred"] or 0)
+        if most_expensive_passing is not cheapest and most_expensive_passing["cost_per_pred"]:
+            mep_daily = most_expensive_passing["cost_per_pred"] * daily_calls
+            savings = mep_daily - daily_cost
+            click.echo(
+                f"\n  Switching from {most_expensive_passing['model']} @ {most_expensive_passing['compute']} "
+                f"(${mep_daily:.2f}/day)\n"
+                f"  saves ${savings:.2f}/day = ${savings*365:,.0f}/year "
+                f"({(savings/mep_daily*100):.0f}% reduction)"
+            )
+
+
 if __name__ == "__main__":
     cli()
