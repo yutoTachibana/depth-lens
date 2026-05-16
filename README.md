@@ -143,6 +143,7 @@ the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
 | Finding | Why it matters |
 |---|---|
 | [Switching from Opus 4.7 to Haiku 4.5 saves ~$123k/year on a 10k-call/day task](docs/findings/v1.0-cost-savings.md) | The 4 concrete "tier-downgrade" savings switches depth-lens surfaces, in $ |
+| [Cost vs latency: OpenAI gpt-5-mini cheaper-per-token but 3× slower than o4-mini at same accuracy](docs/findings/v1.0-cost-savings.md#cost-is-one-axis--latency-is-another) | Picking by $/token alone burns user-facing UX latency; the Pareto frontier on K-hop tier 4 has only 2 points |
 | [Haiku 4.5 collapses on hard 2-SAT at default budget](docs/findings/v1.0-mini-csp-cross-vendor.md) | If you use Haiku for constraint-style problems, set `budget≥4096` or pay 2× error rate |
 | [Gemini 2.5 Flash was uniquely weak vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced) | When we tested 2025-era models from all 3 vendors, Anthropic Sonnet 4 (May 2025) and o3-mini (Jan 2025) were already at ceiling on K-hop. Only Gemini Flash collapsed. 3.1 Flash-Lite closes the gap. |
 | [Claude Opus 4.7 cost varies 10× across (depth × budget) at fixed accuracy](docs/findings/v1.0-anthropic-cross-vendor.md) | Maxing the budget is a strict cost loss for many task classes |
