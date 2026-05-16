@@ -1,10 +1,12 @@
 [build-system]
-requires = ["hatchling"]
+# Pin <1.27 to keep Metadata-Version 2.3 (PyPI doesn't accept 2.4's
+# License-File field yet, as of 2026-05).
+requires = ["hatchling>=1.18,<1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "depth-lens"
-version = "0.5.0"
+version = "1.0.0"
 description = "Measure and visualize reasoning depth across model families (looped transformers, extended-thinking APIs, agent loops)."
 readme = "README.md"
 license = { text = "MIT" }
