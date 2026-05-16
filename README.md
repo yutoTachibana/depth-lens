@@ -1,197 +1,206 @@
 # depth-lens
 
-> The only tool that compares **looped transformers, Claude extended thinking,
-> o-series reasoning, and Gemini thinking modes on the same accuracy-vs-compute
-> axis — using your own data.**
->
+> **Measure how reasoning depth × compute trades off — on your task, across vendors.**
 > [日本語版](./README.ja.md)
 
-Everyone shipping a reasoning model in 2026 exposes a "how hard to think" knob:
-Anthropic's `thinking_budget`, OpenAI's `reasoning_effort`, Gemini's
-`thinking_budget`, OpenMythos's `n_loops`. Setting that knob right matters for
-both accuracy and cost — but standard benchmarks (MMLU, GSM8K) collapse the
-axis. The math-focused [LLMThinkBench](https://github.com/ctrl-gaurav/LLMThinkBench)
-gives you one number per model at a fixed operating point. **depth-lens
-gives you the curve, on your task, across vendors.**
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+
+![Headline finding: Haiku collapses on mini-CSP at default budget but recovers at 4× budget](docs/findings/figures/hero-haiku-csp-collapse.png)
+
+**The plot above is a real depth-lens output, generated for $0.50.** It shows
+that Anthropic's Claude Haiku 4.5 — a frontier reasoning model — drops to
+0.58 accuracy on hard 2-SAT instances at the *default* thinking budget, and
+recovers to 1.00 when you 4× the budget. The other vendor cheap-tier models
+(o4-mini, Gemini 3.1 Flash-Lite) don't show this gap. **You wouldn't know
+this from MMLU.**
+
+depth-lens is the small OSS tool that finds facts like this:
+
+- Sweep your model's compute knob (`thinking_budget`, `reasoning_effort`,
+  `n_loops`) across a depth-controllable task
+- Get accuracy curves with Wilson 95% CIs, $/prediction, latency
+- Auto-detect overthinking and effective-reasoning-depth ceilings
+- Compare across **6 adapter families** on **5 built-in tasks** or your own JSONL
+
+## Why this exists
+
+Modern reasoning APIs all expose a "how hard to think" knob:
+
+| Vendor | Knob | Range |
+|---|---|---|
+| Anthropic Claude | `thinking_budget_tokens` | 1024 – 32k |
+| OpenAI o-series | `reasoning_effort` | low / medium / high |
+| Google Gemini 3.x | `thinking_level` | low / medium / high |
+| Looped transformers (OpenMythos) | `n_loops` | 1 – ∞ |
+
+**MMLU and GSM8K give you one number.** They can't tell you whether your
+production query needs `thinking_budget=1024` (cheap, fast) or `=16384`
+(careful, expensive). depth-lens gives you the curve, on your task,
+across vendors — and points out where the curve has a knee worth knowing
+about.
+
+We're not LLMThinkBench (HF-only, math-only, single operating point) and
+we're not lm-eval-harness (no compute axis). We sit in the niche where
+neither covers: **the cost-vs-quality curve of reasoning models on bounded-
+depth probes you can swap for your own data**.
+
+## 30-second install + first run
 
 ```bash
-pip install -e .[anthropic,openai,gemini,huggingface]
+git clone https://github.com/yutoTachibana/depth-lens.git
+cd depth-lens
+pip install -e .[anthropic,openai,gemini]
 
-# Bring your own JSONL: {"prompt": "...", "target": "...", "depth": 4} per line.
+export ANTHROPIC_API_KEY=...     # plus OPENAI_API_KEY / GOOGLE_API_KEY as needed
+
+# Probe your own data
+echo '{"prompt": "what is 7 + 35?", "target": "42", "depth": 1}' > my.jsonl
 depth-lens probe \
-    --model anthropic:claude-opus-4-7 \
-    --task custom:./my_eval.jsonl:first_int \
-    --compute 1024,2048,4096,8192,16384 \
-    --n-samples 64 \
-    --plot probe.png
+    --model anthropic:claude-haiku-4-5 \
+    --task custom:my.jsonl:first_int \
+    --compute 1024,4096,16384 \
+    --n-samples 16
 ```
 
 ```
-effective depth (≥0.5 acc at some compute): 6
-overthinking @ depth 4: peak=think=4096 (acc=0.94)  →  last=think=16384 (acc=0.71)
-
-cost @ peak compute: $0.018 / prediction
-cost @ last compute: $0.092 / prediction  (5.1× cost for −0.23 accuracy)
+effective depth (≥0.5 acc at some compute): 1
+overthinking @ depth 1: peak=think=4096 (acc=1.00) → last=think=16384 (acc=0.94)
 ```
 
-You now have a defensible answer to *"how much should we let Claude think on
-this task?"* — backed by a sweep on your real data with confidence intervals.
+That's it. You now have a defensible answer to *"what thinking budget should
+I use on this task?"* — backed by a real sweep with confidence intervals.
 
-## What's the niche, exactly?
+## Real findings the tool has produced
 
-| | LLMThinkBench | usail-hkust bench | o1 scaling laws | **depth-lens** |
-|---|---|---|---|---|
-| Compute-axis curves (not single point) | ❌ | partial | ✅ (o1 only) | **✅** |
-| Cross-vendor (Claude / o3 / Gemini / OSS) | ❌ HF only | partial | ❌ o1 only | **✅** |
-| Looped transformer (OpenMythos) | ❌ | ❌ | ❌ | **✅** |
-| Bring-your-own JSONL | ❌ | ❌ | ❌ | **✅** |
-| Cost per prediction with sweep | ❌ | ❌ | ❌ | **✅** |
-| Bounded-depth synthetic probes (K-hop, parity, …) | ❌ | partial | ❌ | **✅** |
+We ran depth-lens on every vendor we could get an API key for, on all 5
+bundled tasks. Total spend: **~$11**. Time invested: **a single session**.
 
-depth-lens is the **measurement tool you reach for once you've already picked a
-model and need to decide how much to spend per query** — on your real workload.
+| Finding | Why it matters |
+|---|---|
+| [Haiku 4.5 collapses on hard 2-SAT at default budget](docs/findings/v1.0-mini-csp-cross-vendor.md) | If you use Haiku for constraint-style problems, set `budget≥4096` or pay 2× error rate |
+| [Gemini 2.5 Flash → 3.1 Flash-Lite is the biggest leap of the 2025-26 generation](docs/findings/v1.0-gemini-3.x-cross-vendor.md) | Cheap-tier benchmarks done before May 2026 are now obsolete |
+| [Claude Opus 4.7 cost varies 10× across (depth × budget) at fixed accuracy](docs/findings/v1.0-anthropic-cross-vendor.md) | Maxing the budget is a strict cost loss for many task classes |
+| [OpenAI gpt-5-mini is cheaper-per-token but 3× slower than o4-mini](docs/findings/v1.0-openai-cross-vendor.md) | Latency-sensitive paths should pick o4-mini |
+| [OpenMythos (looped transformer) extrapolates 1-2 hops past training depth](docs/findings/v0.5-openmythos.md) | Architecture-specific finding from the experiment that motivated the project |
 
-## Quickstart for API users
+**[→ See the full v1.0 cross-vendor summary](docs/findings/v1.0-cross-vendor-summary.md)**
 
-You have a CSV of test prompts and you want to know: at what thinking budget
-does Claude/o3/Gemini start "overthinking" on this task, and what does that
-cost?
+## What's in the box
 
-1. Convert to JSONL with one `{"prompt", "target"}` per line (and optional
-   `"depth"` if your prompts have a difficulty axis).
-2. Run a sweep:
+### 6 adapter families
 
-   ```bash
-   depth-lens probe \
-       --model anthropic:claude-opus-4-7 \
-       --task custom:./my_eval.jsonl:first_int \
-       --compute 1024,4096,16384 \
-       --n-samples 32 \
-       --save-json result.json
-   ```
+| Spec | Compute knob | Cost basis |
+|---|---|---|
+| `anthropic:<model>` | `thinking_budget_tokens` | API |
+| `openai:<model>` | `reasoning_effort` | API |
+| `gemini:<model>` | `thinking_budget_tokens` (2.5) / auto-mapped to `thinking_level` (3.x) | API |
+| `vllm:<model>` | `reasoning_effort` (OpenAI-compatible local server) | self-hosted |
+| `hf:<hf-model-id>` | `max_thinking_tokens` (CoT length) | local GPU |
+| `openmythos` | `n_loops` (Recurrent-Depth Transformer) | local GPU |
 
-3. The console summary tells you the sweet spot. Plug that into your
-   production call:
+API adapters fan requests through a thread pool (`max_concurrent`); a
+1000-prompt probe finishes in minutes, not hours.
 
-   ```python
-   client.messages.create(
-       model="claude-opus-4-7",
-       thinking={"type": "enabled", "budget_tokens": 4096},  # what depth-lens found
-       ...
-   )
-   ```
+### 5 built-in probe tasks
 
-## Quickstart for researchers
+| Task | Depth axis | Reasoning shape |
+|---|---|---|
+| `k-hop` | K (operators) | Forward composition (mod-arithmetic) |
+| `parity` | n (bits) | Aggregation (XOR reduction) |
+| `graph-reach` | path length | Single BFS pass |
+| `state-tracking` | K (instructions) | Vector state (2-counter register machine) |
+| `mini-csp` | n (variables) | **Search / constraint propagation (2-SAT)** |
+| `custom:<jsonl>:<scorer>` | optional `depth` field | **Bring your own data** |
+
+Built-in scorers for `custom:`: `exact`, `first_int`, `last_int`, `yes_no`,
+`contains`, `regex:<pattern>`. Verbose CoT outputs are parsed for
+`Final answer: …` lines automatically.
+
+### Diagnostics
+
+Every `ProbeResult` exposes:
+
+- `.accuracy` — `[depth][compute]` grid in `[0, 1]`
+- `.ci()` — Wilson 95% intervals on every cell
+- `.effective_depth(threshold=0.5)` — biggest depth where some compute level clears the bar
+- `.overthinking(depth, tolerance=0.02)` — peak compute is not max compute, by how much
+- `.cost_per_cell(pricing)` — $/prediction given a `{input, output, thinking}` USD-per-1M dict
+
+## CLI
 
 ```bash
-depth-lens probe \
-    --model openmythos --task k-hop \
-    --depths 2,3,4,5,6,7,8 \
-    --compute 1,2,4,8,16 \
-    --train-steps 5000 \
-    --plot probe.png
+depth-lens probe ...     # one model
+depth-lens compare ...   # several models, overlay plot
+depth-lens dashboard     # Streamlit UI over your cached probes
 ```
 
-Trains a 925K-param OpenMythos on K-hop modular composition (~7 min on a
-consumer GPU), then sweeps loop count × task depth. Bundled probes
-(`k-hop`, `parity`, `graph-reach`, `state-tracking`) all expose a controllable
-depth axis so you can study extrapolation.
-
-Findings from the bundled probes:
-- [**v1.0 cross-vendor summary**](docs/findings/v1.0-cross-vendor-summary.md) — Anthropic vs OpenAI vs Gemini on graded K-hop, with cost/latency
-- [v0.5 OpenMythos across 4 tasks](docs/findings/v0.5-openmythos.md)
-
-## Compare models on the same task
-
-```bash
-depth-lens compare \
-    --models openmythos,hf:Qwen/Qwen2.5-1.5B-Instruct,anthropic:claude-opus-4-7 \
-    --task custom:./my_eval.jsonl:first_int \
-    --plot compare.png
-```
-
-Each adapter plots its own compute knob on its own axis, side-by-side per
-task depth.
-
-## Browse cached runs
-
-```bash
-depth-lens dashboard
-```
-
-Streamlit picks up every probe you've already cached and lets you filter,
-overlay curves, view heatmaps, and read the auto-generated overthinking
-report.
+[Full CLI reference](docs/cli.md) (auto-generated; see `--help` for now).
 
 ## Python API
 
 ```python
 from depth_lens import probe
 from depth_lens.tasks import get_task
+from depth_lens.adapters.anthropic_adapter import AnthropicAdapter
 
-task = get_task("custom:./my_eval.jsonl:first_int")
-adapter = ...   # any ModelAdapter — see CONTRIBUTING.md for the interface
-
-result = probe(adapter, task, depths=task.available_depths(), n_samples=64)
+task = get_task("mini-csp")
+adapter = AnthropicAdapter(model="claude-haiku-4-5", task_name="mini-csp")
+result = probe(adapter, task, depths=[3, 5, 7, 9], n_samples=16)
 
 print(f"effective depth: {result.effective_depth(0.5)}")
-print(f"overthinking @ d=4: {result.overthinking(4)}")
-print(f"Wilson 95% CIs:\n{result.ci()}")
-
-# Cost per prediction (Claude Opus 4.6 approx pricing):
-print(result.cost_per_cell({"input": 15.0, "output": 75.0}))
+print(f"overthinking @ d=9: {result.overthinking(9)}")
+print(f"$/pred @ d=9 mid budget: {result.cost_per_cell({'input': 1.0, 'output': 5.0})[3, 1]}")
 ```
 
-## Built-in adapters
+## How it compares to existing tools
 
-| Spec | Compute knob | Notes |
-|---|---|---|
-| `openmythos` | `n_loops` | Trains a small model on the task if no checkpoint is supplied. |
-| `hf:<hf-model-id>` | `max_thinking_tokens` | Any HF causal LM with a CoT prompt; auto-uses chat template. |
-| `anthropic:<model>` | `thinking_budget_tokens` | Claude extended thinking. Requires `ANTHROPIC_API_KEY`. |
-| `openai:<model>` | `reasoning_effort` | o-series effort (low/medium/high). `OPENAI_API_KEY`. |
-| `gemini:<model>` | `thinking_budget_tokens` | Gemini 2.5 thinking. `GOOGLE_API_KEY`. |
-| `vllm:<model>` | `reasoning_effort` | OpenAI-compatible local server. Set `VLLM_BASE_URL`. |
+| | LLMThinkBench | usail-hkust bench | o1 scaling laws | **depth-lens** |
+|---|---|---|---|---|
+| Compute-axis curves (not single point) | ❌ | partial | ✅ (o1 only) | **✅** |
+| Cross-vendor (Claude / o-series / Gemini / OSS) | ❌ HF only | partial | ❌ o1 only | **✅** |
+| Looped transformer (OpenMythos) | ❌ | ❌ | ❌ | **✅** |
+| Bring-your-own JSONL | ❌ | ❌ | ❌ | **✅** |
+| Cost per prediction with sweep | ❌ | ❌ | ❌ | **✅** |
+| Bounded-depth synthetic probes | ❌ | partial | ❌ | **✅** |
 
-API adapters fan requests across a thread pool (`max_concurrent` kwarg) so
-1000-prompt probes finish in minutes, not hours.
+Closest active competitor is [LLMThinkBench](https://github.com/ctrl-gaurav/LLMThinkBench)
+which targets math-task overthinking on HuggingFace models at a fixed
+operating point — orthogonal to depth-lens's compute-axis sweep across
+vendor APIs.
 
-## Built-in tasks
+## Status
 
-| Task | Depth axis | Use |
-|---|---|---|
-| `custom:<jsonl>:<scorer>` | optional `depth` field | **Bring your own data.** Scorers: `exact`, `first_int`, `last_int`, `yes_no`, `contains`, `regex:<p>`. |
-| `k-hop` | K (operators) | Modular composition on Z/23Z. Latent-CoT probe. |
-| `parity` | n (bits) | XOR over n bits. State-tracking minimal case. |
-| `graph-reach` | path length | Yes/no DAG reachability. Balanced positives/negatives. |
-| `state-tracking` | K (instructions) | Two-counter register machine (inc1, inc2, swap, add). |
+- [x] **v0.1 MVP** — first end-to-end probe (May 2026)
+- [x] **v0.5** — 4 tasks, 5 adapters, Wilson CIs, cache, Streamlit dashboard
+- [x] **v1.0** — concurrent API eval, 5th task (mini-CSP), Gemini 3.x, full
+  cross-vendor benchmark, multi-stage Docker, contributor docs, JA translation
+- [ ] **v1.0 release** — PyPI publish, GitHub Actions CI
 
-## Install
+See [ROADMAP.md](./ROADMAP.md) for what's next.
+
+## Install variants
 
 ```bash
-git clone https://github.com/yutoTachibana/depth-lens.git
-cd depth-lens
-
-# API-only — no GPU needed
+# API-only (no GPU needed) — Anthropic, OpenAI, Gemini, dashboard
 pip install -e .[anthropic,openai,gemini,dashboard]
 
 # +looped transformer + HuggingFace local probes
 pip install -e .[openmythos,huggingface,anthropic,openai,gemini,dashboard]
+
+# Just the framework (BYO adapters)
+pip install -e .
 ```
 
 Python 3.11+. The bundled OpenMythos training helper assumes CUDA; everything
 else is happy on CPU or against remote APIs.
 
-## Status
+## Contributing
 
-- [x] **v0.1 MVP**
-- [x] **v0.5** — 4 tasks, 6 adapters, Wilson CIs, cache, Streamlit dashboard
-- [x] **v1.0 (in progress)** — concurrent API eval, CONTRIBUTING, multi-stage Docker, JA docs, CustomTask + cost tracking
-- [ ] **v1.0 final** — cross-vendor benchmark figure, PyPI publish
-
-## License
-
-MIT. See [LICENSE](./LICENSE).
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to add a Task or an Adapter
+(both are ~50 lines + a test) and the conventions used in the bundled
+implementations.
 
 ## Citation
 
@@ -203,3 +212,7 @@ MIT. See [LICENSE](./LICENSE).
   url    = {https://github.com/yutoTachibana/depth-lens}
 }
 ```
+
+## License
+
+[MIT](./LICENSE).

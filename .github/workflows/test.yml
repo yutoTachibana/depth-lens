@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install (no torch — tests don't need it)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy matplotlib pydantic click tqdm pytest anthropic openai
+      - name: Install depth-lens (no extras — tests are SDK-mocked)
+        run: pip install -e . --no-deps
+      - name: Run tests
+        run: pytest -q
+        env:
+          # Tests use mocked SDKs; no real keys needed.
+          ANTHROPIC_API_KEY: fake
+          OPENAI_API_KEY: fake
+          GOOGLE_API_KEY: fake
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check depth_lens tests
