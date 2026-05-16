@@ -3,26 +3,36 @@
 > **Measure how reasoning depth × compute trades off — on your task, across vendors.**
 > [日本語版](./README.ja.md)
 
+[![tests](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml/badge.svg)](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+[![Status: v1.0 alpha](https://img.shields.io/badge/status-v1.0%20alpha-green.svg)](#status)
 
-![Headline finding: Haiku collapses on mini-CSP at default budget but recovers at 4× budget](docs/findings/figures/hero-haiku-csp-collapse.png)
+![Two findings from a single depth-lens run](docs/findings/figures/hero-v1.0.png)
 
-**The plot above is a real depth-lens output, generated for $0.50.** It shows
-that Anthropic's Claude Haiku 4.5 — a frontier reasoning model — drops to
-0.58 accuracy on hard 2-SAT instances at the *default* thinking budget, and
-recovers to 1.00 when you 4× the budget. The other vendor cheap-tier models
-(o4-mini, Gemini 3.1 Flash-Lite) don't show this gap. **You wouldn't know
-this from MMLU.**
+**Both plots above are real depth-lens outputs from a single benchmark
+session (~$14 total spend).** Two practitioner-actionable facts neither
+MMLU nor GSM8K can tell you:
 
-depth-lens is the small OSS tool that finds facts like this:
+1. **Story 1 (top)** — In early-mid 2025, only **Gemini 2.5 Flash**
+   collapsed on the hardest K-hop tier among same-era cheap-tier
+   reasoning models. Anthropic Sonnet 4 (May 2025) and OpenAI o3-mini
+   (Jan 2025) were already at ceiling. depth-lens caught the
+   vendor-specific anomaly; Gemini 3.1 Flash-Lite (May 2026 GA) has
+   closed the gap.
+2. **Story 2 (bottom)** — Claude Haiku 4.5 (current cheap tier) drops
+   to 0.58 on hard 2-SAT at *default* thinking budget. A 4× budget bump
+   fully recovers it. Actionable rule: **set `thinking_budget≥4096`
+   when using Haiku on CSP-style workloads.**
 
-- Sweep your model's compute knob (`thinking_budget`, `reasoning_effort`,
-  `n_loops`) across a depth-controllable task
+depth-lens is the small OSS tool that finds facts like these:
+
+- Sweep your model's compute knob (`thinking_budget` / `reasoning_effort` /
+  `thinking_level` / `n_loops`) across a depth-controllable task
 - Get accuracy curves with Wilson 95% CIs, $/prediction, latency
 - Auto-detect overthinking and effective-reasoning-depth ceilings
-- Compare across **6 adapter families** on **5 built-in tasks** or your own JSONL
+- Compare across **6 adapter families** (Anthropic / OpenAI / Gemini /
+  vLLM / HuggingFace / OpenMythos) on **5 built-in tasks** or your own JSONL
 
 ## Why this exists
 
@@ -65,12 +75,21 @@ depth-lens probe \
 ```
 
 ```
+[anthropic] using claude-haiku-4-5 via API
+probe ...  100% [00:34, 8.6s/it, d=1, acc=1.00]
+Curve plot: probe.png
+
+---- summary ----
 effective depth (≥0.5 acc at some compute): 1
 overthinking @ depth 1: peak=think=4096 (acc=1.00) → last=think=16384 (acc=0.94)
 ```
 
 That's it. You now have a defensible answer to *"what thinking budget should
 I use on this task?"* — backed by a real sweep with confidence intervals.
+
+For more interesting sweeps, point `--task` at the built-in probes
+(`k-hop`, `parity`, `graph-reach`, `state-tracking`, `mini-csp`) — see
+the table below.
 
 ## Real findings the tool has produced
 
@@ -138,7 +157,7 @@ depth-lens compare ...   # several models, overlay plot
 depth-lens dashboard     # Streamlit UI over your cached probes
 ```
 
-[Full CLI reference](docs/cli.md) (auto-generated; see `--help` for now).
+Each subcommand has full `--help`.
 
 ## Python API
 
@@ -176,11 +195,12 @@ vendor APIs.
 
 - [x] **v0.1 MVP** — first end-to-end probe (May 2026)
 - [x] **v0.5** — 4 tasks, 5 adapters, Wilson CIs, cache, Streamlit dashboard
-- [x] **v1.0** — concurrent API eval, 5th task (mini-CSP), Gemini 3.x, full
-  cross-vendor benchmark, multi-stage Docker, contributor docs, JA translation
-- [ ] **v1.0 release** — PyPI publish, GitHub Actions CI
+- [x] **v1.0** — 6 adapter families, 5 tasks, full cross-vendor benchmark
+  (Anthropic/OpenAI/Gemini, current + 2025 prior gen), multi-stage Docker,
+  contributor docs, JA translation, GitHub Actions CI (lint + tests)
+- [ ] **v1.0 release** — PyPI publish (you can already `pip install -e .` from source)
 
-See [ROADMAP.md](./ROADMAP.md) for what's next.
+73 unit tests passing. See [ROADMAP.md](./ROADMAP.md) for what's next.
 
 ## Install variants
 
