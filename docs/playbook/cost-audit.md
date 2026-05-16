@@ -76,6 +76,33 @@ At 5,000 calls/day with the cheapest passing config:
 - `0.95` → aggressive; will demote some tasks to Haiku where Sonnet was
   picking up edge cases. Pair with a canary.
 
+## Enforcing a latency SLA
+
+If your task is user-facing (a chat reply, a code-completion popup), the
+cheapest model isn't acceptable if it's also too slow. Add `--max-latency`:
+
+```bash
+depth-lens recommend \
+    --models anthropic:claude-haiku-4-5,anthropic:claude-sonnet-4-6 \
+    --task custom:./prod_eval.jsonl:first_int \
+    --target-accuracy 0.97 \
+    --max-latency 2.0 \
+    --n-samples 64 \
+    --daily-calls 10000
+```
+
+The output table always shows per-call median latency. When the cheapest
+passing config and the fastest passing config differ, the recommend
+command prints a tradeoff line:
+
+```
+⚡ Cost-vs-speed tradeoff among passing configs:
+  Cheapest is 3.2× slower than fastest; fastest costs 1.4× more per call.
+```
+
+Decide on the axis that's binding for *your* workload. Async pipelines
+care more about cost; user-facing chats care more about latency.
+
 ## Caveats
 
 1. **One eval JSONL per task** is important. Mixing all your tasks

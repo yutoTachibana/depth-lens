@@ -370,6 +370,11 @@ def dashboard_cmd(port: int):
 @click.option("--seed", default=0, type=int)
 @click.option("--pricing", default=None, type=click.Path(dir_okay=False), help="Optional JSON pricing override.")
 @click.option("--daily-calls", default=None, type=int, help="If set, show projected daily / yearly cost at this volume.")
+@click.option(
+    "--max-latency", default=None, type=float,
+    help="Drop configurations whose median latency exceeds this many seconds per prediction. "
+         "Use to enforce a UX-side speed SLA (e.g., --max-latency 2.0 for a chat UI).",
+)
 def recommend_cmd(
     models: str,
     task: str,
@@ -381,6 +386,7 @@ def recommend_cmd(
     seed: int,
     pricing: str | None,
     daily_calls: int | None,
+    max_latency: float | None,
 ):
     """
     Find the cheapest model + compute setting that meets your accuracy bar.
@@ -432,55 +438,95 @@ def recommend_cmd(
         )
         price = get_pricing(spec, pricing_override)
         cost_grid = r.cost_per_cell(price) if price else None
+        lat_grid = r.latency_per_cell
         for di, d in enumerate(r.depths):
             for ci, c in enumerate(r.compute_grid):
                 acc = r.accuracy[di][ci]
                 cost = float(cost_grid[di, ci]) if cost_grid is not None else None
+                latency = float(lat_grid[di][ci]) if lat_grid else None
+                acc_ok = acc >= target_accuracy
+                lat_ok = (max_latency is None) or (latency is None) or (latency <= max_latency)
                 rows.append({
                     "model": spec,
                     "depth": d,
                     "compute": c.label,
                     "accuracy": acc,
                     "cost_per_pred": cost,
-                    "passes": acc >= target_accuracy,
+                    "latency_sec": latency,
+                    "passes": acc_ok and lat_ok,
+                    "failed_on": (
+                        None if (acc_ok and lat_ok)
+                        else "accuracy+latency" if (not acc_ok and not lat_ok)
+                        else "accuracy" if not acc_ok
+                        else "latency"
+                    ),
                 })
         adapter.teardown()
 
     passing = [r for r in rows if r["passes"]]
     failing = [r for r in rows if not r["passes"]]
     passing.sort(key=lambda r: (r["cost_per_pred"] if r["cost_per_pred"] is not None else float("inf")))
+    fastest = sorted(
+        passing, key=lambda r: (r["latency_sec"] if r["latency_sec"] is not None else float("inf"))
+    )[0] if passing else None
+    cheapest = passing[0] if passing else None
 
     click.echo("")
-    click.echo("=" * 88)
-    click.echo(f"Target accuracy ≥ {target_accuracy:.2f}")
+    click.echo("=" * 92)
+    bar_msg = f"Target accuracy ≥ {target_accuracy:.2f}"
+    if max_latency is not None:
+        bar_msg += f"  ·  Max latency ≤ {max_latency:.2f}s/pred"
+    click.echo(bar_msg)
     click.echo(f"Probed {len(rows)} configurations, {len(passing)} passing.")
-    click.echo("=" * 88)
+    click.echo("=" * 92)
 
     def _fmt(r):
         cost = "(no pricing)" if r["cost_per_pred"] is None else f"${r['cost_per_pred']*1000:.3f}/k-pred"
-        return f"  {r['model']:<42s}  d={r['depth']:<2d}  {r['compute']:<28s} acc={r['accuracy']:.2f}  {cost}"
+        lat = "(no lat)" if r["latency_sec"] is None else f"{r['latency_sec']:>5.2f}s/pred"
+        return (
+            f"  {r['model']:<40s}  d={r['depth']:<2d}  {r['compute']:<28s} "
+            f"acc={r['accuracy']:.2f}  {cost:>18s}  {lat}"
+        )
 
     if passing:
         click.echo("\n✅ Passing (cheapest first):")
         for r in passing[:10]:
-            tag = "  ← cheapest" if r is passing[0] and r["cost_per_pred"] is not None else ""
-            click.echo(_fmt(r) + tag)
+            tags = []
+            if r is cheapest and r["cost_per_pred"] is not None:
+                tags.append("← cheapest")
+            if r is fastest and fastest is not cheapest and r["latency_sec"] is not None:
+                tags.append("← fastest")
+            tag_str = ("  " + " ".join(tags)) if tags else ""
+            click.echo(_fmt(r) + tag_str)
         if len(passing) > 10:
             click.echo(f"  … and {len(passing) - 10} more")
+        # If cheapest and fastest differ, highlight the tradeoff.
+        if fastest is not cheapest and cheapest is not None and fastest is not None:
+            slowdown = (cheapest["latency_sec"] / fastest["latency_sec"]
+                        if cheapest["latency_sec"] and fastest["latency_sec"] else None)
+            speedup_premium = (fastest["cost_per_pred"] / cheapest["cost_per_pred"]
+                               if cheapest["cost_per_pred"] and fastest["cost_per_pred"] else None)
+            click.echo("")
+            click.echo("⚡ Cost-vs-speed tradeoff among passing configs:")
+            if slowdown is not None and speedup_premium is not None:
+                click.echo(
+                    f"  Cheapest is {slowdown:.1f}× slower than fastest; "
+                    f"fastest costs {speedup_premium:.1f}× more per call."
+                )
     else:
-        click.echo("\n❌ No configuration met the accuracy bar.")
+        click.echo("\n❌ No configuration met the bar.")
         if failing:
             click.echo("  Closest attempts:")
-            failing.sort(key=lambda r: -r["accuracy"])
+            failing.sort(key=lambda r: (-r["accuracy"], r["latency_sec"] or float("inf")))
             for r in failing[:5]:
-                click.echo(_fmt(r))
+                fail_tag = f"  ← failed on {r['failed_on']}" if r.get("failed_on") else ""
+                click.echo(_fmt(r) + fail_tag)
 
-    if passing and daily_calls is not None and passing[0]["cost_per_pred"] is not None:
-        cheapest = passing[0]
+    if passing and daily_calls is not None and cheapest is not None and cheapest["cost_per_pred"] is not None:
         daily_cost = cheapest["cost_per_pred"] * daily_calls
         yearly = daily_cost * 365
         click.echo("")
-        click.echo("=" * 88)
+        click.echo("=" * 92)
         click.echo(f"At {daily_calls:,} calls/day with the cheapest passing config:")
         click.echo(f"  {cheapest['model']} @ {cheapest['compute']}")
         click.echo(f"  → ${daily_cost:.2f}/day  ${yearly:,.0f}/year")

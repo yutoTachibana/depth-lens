@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depth-lens"
-version = "1.0.0"
+version = "1.1.0"
 description = "Measure and visualize reasoning depth across model families (looped transformers, extended-thinking APIs, agent loops)."
 readme = "README.md"
 license = { text = "MIT" }

@@ -89,6 +89,7 @@ depth-lens recommend \
     --models anthropic:claude-haiku-4-5,anthropic:claude-sonnet-4-6,anthropic:claude-opus-4-7 \
     --task custom:my_eval.jsonl:first_int \
     --target-accuracy 0.95 \
+    --max-latency 2.0 \
     --n-samples 32 \
     --daily-calls 10000
 ```
@@ -100,20 +101,20 @@ Probed 6 configurations, 6 passing.
 ========================================================================================
 
 ✅ Passing (cheapest first):
-  anthropic:claude-haiku-4-5     d=1  thinking_budget_tokens=4096  acc=1.00  $1.404/k-pred  ← cheapest
-  anthropic:claude-haiku-4-5     d=1  thinking_budget_tokens=1024  acc=1.00  $1.430/k-pred
-  anthropic:claude-sonnet-4-6    d=1  thinking_budget_tokens=1024  acc=1.00  $2.545/k-pred
-  anthropic:claude-sonnet-4-6    d=1  thinking_budget_tokens=4096  acc=1.00  $2.863/k-pred
-  anthropic:claude-opus-4-7      d=1  thinking_budget_tokens=1024  acc=1.00  $3.378/k-pred
-  anthropic:claude-opus-4-7      d=1  thinking_budget_tokens=4096  acc=1.00  $3.871/k-pred
+  anthropic:claude-haiku-4-5    d=1  thinking_budget_tokens=1024   acc=1.00  $1.432/k-pred   0.37s/pred  ← cheapest
+  anthropic:claude-haiku-4-5    d=1  thinking_budget_tokens=16384  acc=1.00  $1.582/k-pred   0.47s/pred
+  anthropic:claude-sonnet-4-6   d=1  thinking_budget_tokens=1024   acc=1.00  $2.536/k-pred   0.64s/pred
+  anthropic:claude-sonnet-4-6   d=1  thinking_budget_tokens=16384  acc=1.00  $2.835/k-pred   0.67s/pred
+  anthropic:claude-opus-4-7     d=1  thinking_budget_tokens=1024   acc=1.00  $3.396/k-pred   0.45s/pred
+  anthropic:claude-opus-4-7     d=1  thinking_budget_tokens=16384  acc=1.00  $4.496/k-pred   0.42s/pred
 
 ========================================================================================
 At 10,000 calls/day with the cheapest passing config:
-  anthropic:claude-haiku-4-5 @ thinking_budget_tokens=4096
-  → $14.04/day  $5,124/year
+  anthropic:claude-haiku-4-5 @ thinking_budget_tokens=1024
+  → $14.32/day  $5,226/year
 
-  Switching from anthropic:claude-opus-4-7 @ thinking_budget_tokens=4096 ($38.71/day)
-  saves $24.67/day = $9,006/year (64% reduction)
+  Switching from anthropic:claude-opus-4-7 @ thinking_budget_tokens=16384 ($44.96/day)
+  saves $30.65/day = $11,185/year (68% reduction)
 ```
 
 That's it. You now have a defensible answer to *"is Opus actually
