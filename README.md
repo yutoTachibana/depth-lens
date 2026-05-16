@@ -14,22 +14,17 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Status: v1.0 alpha](https://img.shields.io/badge/status-v1.0%20alpha-green.svg)](#status)
 
-![Two findings from a single depth-lens run](docs/findings/figures/hero-v1.0.png)
+![Switching from Opus 4.7 to Haiku 4.5 saves $123k/year on a 10k-calls/day workload — same accuracy](docs/findings/figures/hero-cost-savings.png)
 
-**Both plots above are real depth-lens outputs from a single benchmark
-session (~$14 total spend).** Two practitioner-actionable facts neither
-MMLU nor GSM8K can tell you:
+**This plot is a real depth-lens output.** Four Anthropic configurations,
+all scoring 1.00 accuracy on K-hop tier 4, ranged across **~35× in cost**.
+That's the gap the *"use the latest / biggest"* instinct burns through
+silently. depth-lens finds the cheapest passing tier on **your** data in
+under 10 minutes — see the 30-second install below.
 
-1. **Story 1 (top)** — In early-mid 2025, only **Gemini 2.5 Flash**
-   collapsed on the hardest K-hop tier among same-era cheap-tier
-   reasoning models. Anthropic Sonnet 4 (May 2025) and OpenAI o3-mini
-   (Jan 2025) were already at ceiling. depth-lens caught the
-   vendor-specific anomaly; Gemini 3.1 Flash-Lite (May 2026 GA) has
-   closed the gap.
-2. **Story 2 (bottom)** — Claude Haiku 4.5 (current cheap tier) drops
-   to 0.58 on hard 2-SAT at *default* thinking budget. A 4× budget bump
-   fully recovers it. Actionable rule: **set `thinking_budget≥4096`
-   when using Haiku on CSP-style workloads.**
+> Two other findings from the same bench:
+> [Claude Haiku 4.5 collapses on hard 2-SAT at default budget but recovers at 4× budget](docs/findings/v1.0-mini-csp-cross-vendor.md)
+> · [Gemini 2.5 Flash was uniquely weak in early 2025 vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced)
 
 depth-lens is the small OSS tool that finds facts like these:
 
