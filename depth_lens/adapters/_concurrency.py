@@ -18,8 +18,9 @@ Order is preserved: result[i] corresponds to prompts[i].
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 U = TypeVar("U")

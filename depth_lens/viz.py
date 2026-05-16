@@ -100,8 +100,8 @@ def plot_overlay(
 
     model_colors = plt.cm.tab10(np.linspace(0, 0.9, len(results)))
 
-    for ax, d in zip(axes_flat, focus_depths):
-        for r, color in zip(results, model_colors):
+    for ax, d in zip(axes_flat, focus_depths, strict=False):
+        for r, color in zip(results, model_colors, strict=False):
             di = r.depths.index(d)
             ys = r.as_array()[di]
             xs = list(range(len(r.compute_grid)))

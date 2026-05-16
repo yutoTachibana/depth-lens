@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from statistics import median
-from typing import Iterable
 
 import numpy as np
 from tqdm import tqdm
@@ -190,10 +190,7 @@ def probe(
         verbose      -- tqdm progress bar
     """
     depths_list = list(depths)
-    if compute_grid is None:
-        compute_grid = adapter.default_compute_grid()
-    else:
-        compute_grid = list(compute_grid)
+    compute_grid = adapter.default_compute_grid() if compute_grid is None else list(compute_grid)
 
     # Try cache before doing any work.
     if use_cache:

@@ -18,8 +18,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from depth_lens.adapters.base import ComputeLevel
 from depth_lens.metrics import ProbeResult

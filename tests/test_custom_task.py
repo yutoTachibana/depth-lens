@@ -12,13 +12,12 @@ from depth_lens.tasks import CustomTask, get_task
 
 
 def _write(rows: list[dict]) -> Path:
-    f = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
-    )
-    for r in rows:
-        f.write(json.dumps(r) + "\n")
-    f.close()
-    return Path(f.name)
+    ) as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+        return Path(f.name)
 
 
 def test_loads_jsonl():

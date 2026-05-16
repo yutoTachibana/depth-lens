@@ -30,7 +30,6 @@ from itertools import product
 
 from depth_lens.tasks.base import ProbeInstance, Task
 
-
 _MAX_VARS = 10  # safety cap — brute force is 2^n
 
 

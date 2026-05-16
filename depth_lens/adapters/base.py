@@ -58,5 +58,5 @@ class ModelAdapter(ABC):
         """Run the model at the given compute level on a batch of prompts."""
         ...
 
-    def teardown(self) -> None:
+    def teardown(self) -> None:  # noqa: B027 — intentional default no-op
         """Release model resources (GPU memory, sessions, etc.). Default: no-op."""

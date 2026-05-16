@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from depth_lens.cache import cache_dir as default_cache_dir
-from depth_lens.metrics import ProbeResult, wilson_ci
+from depth_lens.metrics import ProbeResult
 
 
 def _load_all(cache_directory: Path) -> list[tuple[str, ProbeResult]]:

@@ -13,7 +13,6 @@ checkpoint.
 
 from __future__ import annotations
 
-import json
 import math
 import random
 import time
@@ -28,7 +27,7 @@ from depth_lens.adapters.base import ComputeLevel, ModelAdapter, Prediction
 from depth_lens.tasks.base import ProbeInstance, Task
 
 if TYPE_CHECKING:
-    from open_mythos import MythosConfig, OpenMythos
+    from open_mythos import OpenMythos
 
 
 PAD_TOKEN = "<pad>"
@@ -90,7 +89,7 @@ class OpenMythosAdapter(ModelAdapter):
 
     def __init__(
         self,
-        model: "OpenMythos",
+        model: OpenMythos,
         vocab: dict[str, int],
         max_seq_len: int = 64,
         device: str | torch.device | None = None,
@@ -152,8 +151,8 @@ class OpenMythosAdapter(ModelAdapter):
 
 def train_for_task(
     task: Task,
-    cfg: TrainConfig = TrainConfig(),
-    device: str | torch.device = "cuda" if torch.cuda.is_available() else "cpu",
+    cfg: TrainConfig | None = None,
+    device: str | torch.device | None = None,
     progress: bool = True,
 ) -> OpenMythosAdapter:
     """
@@ -162,6 +161,10 @@ def train_for_task(
     """
     from open_mythos import MythosConfig, OpenMythos
 
+    if cfg is None:
+        cfg = TrainConfig()
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
     device = torch.device(device)

@@ -31,8 +31,10 @@ def _build_adapter(
         from depth_lens.adapters.openmythos_adapter import (
             TrainConfig,
             load_checkpoint,
-            save_checkpoint as _save_ckpt,
             train_for_task,
+        )
+        from depth_lens.adapters.openmythos_adapter import (
+            save_checkpoint as _save_ckpt,
         )
 
         if checkpoint:
@@ -333,11 +335,11 @@ def dashboard_cmd(port: int):
 
     try:
         import streamlit  # noqa: F401
-    except ImportError:
+    except ImportError as e:
         raise click.UsageError(
             "Streamlit not installed. `pip install streamlit` or "
             "`pip install -e .[dashboard]`."
-        )
+        ) from e
 
     dash = Path(__file__).parent / "dashboard.py"
     click.echo(f"Launching depth-lens dashboard on port {port}…")

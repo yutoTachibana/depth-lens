@@ -159,7 +159,7 @@ class OpenAIAdapter(ModelAdapter):
                     "raw_text": text,
                     "usage": getattr(resp, "usage", None).__dict__ if getattr(resp, "usage", None) else None,
                 }
-            except (openai.RateLimitError, openai.APIStatusError) as e:
+            except (openai.RateLimitError, openai.APIStatusError):
                 retries += 1
                 if retries > self._max_retries:
                     raise
