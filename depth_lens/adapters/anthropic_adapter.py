@@ -52,6 +52,12 @@ _TASK_INSTRUCTIONS: dict[str, str] = {
         "Determine whether any assignment of true/false makes every clause true. "
         "On the final line write exactly `Final answer: yes` or `Final answer: no`."
     ),
+    "dict-lookup": (
+        "You are given a list of `key = value` pairs followed by `lookup <key>`. "
+        "Return the value associated with the queried key. Keys are single letters; "
+        "values are single digits 0-9. On the final line write exactly "
+        "`Final answer: <digit>`."
+    ),
 }
 
 
