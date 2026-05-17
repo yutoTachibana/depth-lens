@@ -1,0 +1,31 @@
+services:
+  vllm-llama3-8b:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-llama3-8b
+    runtime: nvidia
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ${HOME:-/root}/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      - --model
+      - hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4
+      - --quantization
+      - awq_marlin
+      - --max-model-len
+      - "4096"
+      - --gpu-memory-utilization
+      - "0.85"
+      - --dtype
+      - half

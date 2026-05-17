@@ -119,14 +119,34 @@ class ProbeResult:
                 out[i, j, 1] = hi
         return out
 
-    def cost_per_cell(self, pricing: dict[str, float]) -> np.ndarray | None:
+    def cost_per_cell(self, pricing: dict) -> np.ndarray | None:
         """
         Estimated cost in USD *per prediction*, given a pricing dict.
 
-        pricing is a dict like {"input": 15.0, "output": 75.0} where the values
-        are USD per **million** tokens. Returns a (D, C) numpy array, or None if
-        the result has no token data.
+        Two pricing schemas are supported:
+
+        - Token-based (API models): ``{"input": 1.0, "output": 5.0}`` in USD per
+          million tokens. Requires ``self.tokens_per_cell`` to be populated.
+        - GPU-hour-based (self-hosted): ``{"gpu_hourly": 0.50, "gpus": 1}`` in
+          USD per GPU-hour. Cost per call is
+          ``latency_sec × gpu_hourly × gpus / 3600``. Requires
+          ``self.latency_per_cell`` to be populated.
+
+        Returns a (D, C) numpy array, or None if the required data isn't
+        present for the chosen pricing schema.
         """
+        if "gpu_hourly" in pricing:
+            if self.latency_per_cell is None:
+                return None
+            rate = float(pricing["gpu_hourly"])
+            gpus = int(pricing.get("gpus", 1))
+            out = np.zeros((len(self.depths), len(self.compute_grid)), dtype=float)
+            for i, row in enumerate(self.latency_per_cell):
+                for j, lat in enumerate(row):
+                    out[i, j] = float(lat) * rate * gpus / 3600.0
+            return out
+
+        # Token-based pricing path.
         if self.tokens_per_cell is None:
             return None
         out = np.zeros((len(self.depths), len(self.compute_grid)), dtype=float)

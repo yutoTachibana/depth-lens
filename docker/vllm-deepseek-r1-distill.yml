@@ -1,0 +1,32 @@
+services:
+  vllm-deepseek-r1-distill:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-deepseek-r1-distill
+    runtime: nvidia
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ${HOME:-/root}/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      - --model
+      - deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+      - --max-model-len
+      - "8192"
+      - --gpu-memory-utilization
+      - "0.90"
+      - --dtype
+      - half
+      - --enable-reasoning
+      - --reasoning-parser
+      - deepseek_r1

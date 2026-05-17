@@ -20,12 +20,17 @@ def _build_adapter(
     checkpoint: str | None = None,
     train_steps: int = 6000,
     save_checkpoint: str | None = None,
+    compute_axis: str | None = None,
 ) -> ModelAdapter:
     """Construct an adapter from a CLI --model spec.
 
     Supported specs:
         openmythos                  — train (or load) a tiny OpenMythos for this task
         hf:<hf-model-id>            — wrap a HuggingFace causal LM
+        vllm:<model-id>             — vLLM / OpenAI-compatible local server
+
+    `compute_axis` is currently only honored by vLLM (`reasoning_effort` vs
+    `max_tokens`). Other adapters ignore it.
     """
     if model_spec == "openmythos":
         from depth_lens.adapters.openmythos_adapter import (
@@ -84,8 +89,14 @@ def _build_adapter(
 
         model = model_spec[len("vllm:"):]
         base_url = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
-        click.echo(f"[vllm] using {model} at {base_url}")
-        return VLLMAdapter(model=model, task_name=task_name, base_url=base_url)
+        axis = compute_axis or "reasoning_effort"
+        click.echo(f"[vllm] using {model} at {base_url} (compute_axis={axis})")
+        return VLLMAdapter(
+            model=model,
+            task_name=task_name,
+            base_url=base_url,
+            compute_axis=axis,
+        )
 
     raise click.UsageError(
         f"Unknown --model {model_spec!r}. Use 'openmythos', 'hf:<hf-id>', "
@@ -144,6 +155,13 @@ def cli():
 @click.option("--checkpoint", default=None, type=click.Path(dir_okay=False))
 @click.option("--train-steps", default=6000, type=int)
 @click.option("--save-checkpoint", default=None, type=click.Path(dir_okay=False))
+@click.option(
+    "--compute-axis", default=None,
+    type=click.Choice(["reasoning_effort", "max_tokens"]),
+    help="Compute knob for vLLM adapters. 'reasoning_effort' for thinking "
+         "models (DeepSeek-R1-Distill, Qwen-Thinking); 'max_tokens' for "
+         "non-thinking models (Llama-3-8B-Instruct). Default: reasoning_effort.",
+)
 def probe_cmd(
     model: str,
     task: str,
@@ -158,6 +176,7 @@ def probe_cmd(
     checkpoint: str | None,
     train_steps: int,
     save_checkpoint: str | None,
+    compute_axis: str | None,
 ):
     """Run a depth × compute probe for one model."""
     depths_list = [int(x) for x in depths.split(",") if x.strip()]
@@ -168,6 +187,7 @@ def probe_cmd(
         checkpoint=checkpoint,
         train_steps=train_steps,
         save_checkpoint=save_checkpoint,
+        compute_axis=compute_axis,
     )
 
     compute_grid = _parse_compute(compute, adapter.compute_axis_name)
@@ -375,6 +395,12 @@ def dashboard_cmd(port: int):
     help="Drop configurations whose median latency exceeds this many seconds per prediction. "
          "Use to enforce a UX-side speed SLA (e.g., --max-latency 2.0 for a chat UI).",
 )
+@click.option(
+    "--gpu-hourly-rate", default=None, type=float,
+    help="USD per GPU-hour used to amortize cost for self-hosted models "
+         "(vllm:*, hf:*, openmythos) when no explicit pricing entry is provided. "
+         "Default: 0.50 (midpoint between AWS g5 spot and on-demand).",
+)
 def recommend_cmd(
     models: str,
     task: str,
@@ -387,6 +413,7 @@ def recommend_cmd(
     pricing: str | None,
     daily_calls: int | None,
     max_latency: float | None,
+    gpu_hourly_rate: float | None,
 ):
     """
     Find the cheapest model + compute setting that meets your accuracy bar.
@@ -401,7 +428,7 @@ def recommend_cmd(
             --target-accuracy 0.95 \\
             --daily-calls 10000
     """
-    from depth_lens.pricing import get_pricing, load_pricing_file
+    from depth_lens.pricing import get_pricing, load_pricing_file, maybe_gpu_hour_fallback
 
     pricing_override = load_pricing_file(pricing) if pricing else None
 
@@ -420,10 +447,18 @@ def recommend_cmd(
     rows: list[dict] = []
     for spec in model_specs:
         click.echo(f"\n=== {spec} ===")
-        if get_pricing(spec, pricing_override) is None:
+        spec_pricing = maybe_gpu_hour_fallback(
+            spec, get_pricing(spec, pricing_override), gpu_hourly_rate
+        )
+        if spec_pricing is None:
             click.echo(
                 f"  [warn] no pricing for {spec}; cost columns will be blank. "
                 f"Provide --pricing to override."
+            )
+        elif "gpu_hourly" in spec_pricing and get_pricing(spec, pricing_override) is None:
+            click.echo(
+                f"  [info] self-hosted spec — costing at ${spec_pricing['gpu_hourly']:.2f}/GPU-hour "
+                f"× {spec_pricing.get('gpus', 1)} GPU(s)"
             )
         adapter = _build_adapter(spec, task)
         compute_grid = _parse_compute(compute, adapter.compute_axis_name)
@@ -436,8 +471,7 @@ def recommend_cmd(
             batch_size=batch_size,
             seed=seed,
         )
-        price = get_pricing(spec, pricing_override)
-        cost_grid = r.cost_per_cell(price) if price else None
+        cost_grid = r.cost_per_cell(spec_pricing) if spec_pricing else None
         lat_grid = r.latency_per_cell
         for di, d in enumerate(r.depths):
             for ci, c in enumerate(r.compute_grid):

@@ -85,3 +85,66 @@ def test_vllm_default_compute_axis(monkeypatch):
     assert adapter.compute_axis_name == "reasoning_effort"
     grid = adapter.default_compute_grid()
     assert [c.label for c in grid] == ["effort=low", "effort=medium", "effort=high"]
+
+
+def test_vllm_max_tokens_axis_default_grid(monkeypatch):
+    _install_fake_openai(monkeypatch)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    from depth_lens.adapters.vllm_adapter import VLLMAdapter
+
+    adapter = VLLMAdapter(model="m", compute_axis="max_tokens")
+    assert adapter.compute_axis_name == "max_tokens"
+    grid = adapter.default_compute_grid()
+    assert [c.label for c in grid] == ["max_tokens=256", "max_tokens=1024", "max_tokens=4096"]
+    assert [c.value for c in grid] == [256, 1024, 4096]
+
+
+def test_vllm_max_tokens_axis_predict_passes_max_tokens(monkeypatch):
+    """When compute_axis='max_tokens', the request must NOT include
+    reasoning_effort (which would error on Llama-3-8B-Instruct etc.) and
+    must include max_tokens."""
+    captured = _install_fake_openai(monkeypatch, response_text="Final answer: 7")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    from depth_lens.adapters.base import ComputeLevel
+    from depth_lens.adapters.vllm_adapter import VLLMAdapter
+
+    adapter = VLLMAdapter(
+        model="meta-llama/Meta-Llama-3-8B-Instruct",
+        compute_axis="max_tokens",
+        task_name="k-hop",
+    )
+    preds = adapter.predict(["3 add1 add5"], ComputeLevel(1024, "max_tokens=1024"))
+    assert len(preds) == 1
+    assert preds[0].text == "7"
+    assert preds[0].metadata["max_tokens"] == 1024
+    # The compute_axis name must propagate (used downstream by plots / cache).
+    assert adapter.compute_axis_name == "max_tokens"
+    # The init kwargs captured should NOT have anything about reasoning effort.
+    init_kwargs = captured.get("init_kwargs", {})
+    assert init_kwargs.get("base_url") == "http://localhost:8000/v1"
+
+
+def test_vllm_max_tokens_grid_explicit(monkeypatch):
+    _install_fake_openai(monkeypatch)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    from depth_lens.adapters.vllm_adapter import VLLMAdapter
+
+    adapter = VLLMAdapter(model="m", compute_axis="max_tokens", compute_grid=[128, 512])
+    grid = adapter.default_compute_grid()
+    assert [c.label for c in grid] == ["max_tokens=128", "max_tokens=512"]
+    assert [c.value for c in grid] == [128, 512]
+
+
+def test_vllm_invalid_compute_axis_raises(monkeypatch):
+    _install_fake_openai(monkeypatch)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    from depth_lens.adapters.vllm_adapter import VLLMAdapter
+
+    import pytest
+
+    with pytest.raises(ValueError, match="compute_axis"):
+        VLLMAdapter(model="m", compute_axis="loops")

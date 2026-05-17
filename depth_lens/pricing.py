@@ -1,16 +1,25 @@
 """
-Default pricing data and cost-from-tokens helpers.
+Default pricing data and cost-from-tokens / cost-from-latency helpers.
 
-Prices are USD per 1 million tokens. We treat extended-thinking tokens as
-output tokens (the Anthropic billing model). Pricing changes; override via
-`--pricing path/to/pricing.json` on the CLI when reality moves.
+Two pricing schemas are supported, distinguished by their keys:
+
+- **Token-based** (API models): ``{"input": 1.00, "output": 5.00}`` where
+  values are USD per 1M tokens. Used for hosted APIs (Anthropic, OpenAI,
+  Gemini). Extended-thinking tokens are billed as output tokens.
+
+- **GPU-hour-based** (self-hosted vLLM / SGLang / TGI / OpenMythos):
+  ``{"gpu_hourly": 0.50, "gpus": 1}`` where ``gpu_hourly`` is USD per
+  GPU-hour and ``gpus`` is the number of GPUs the server uses. Cost per
+  call is ``latency_seconds × gpu_hourly × gpus / 3600``. This makes
+  self-hosted models comparable to API models on the same cost axis.
 
 The dict keys match the adapter spec strings used elsewhere
-(`anthropic:claude-haiku-4-5`, `openai:o4-mini`, etc.) so a single lookup
-handles all vendors uniformly.
+(``anthropic:claude-haiku-4-5``, ``vllm:meta-llama/Meta-Llama-3-8B-Instruct``,
+etc.) so a single lookup handles all vendors uniformly. For self-hosted
+models the spec isn't known ahead of time — see ``gpu_hourly_fallback``
+below for the convenience path.
 
-Last reviewed: 2026-05-16. Pricing for newer / preview models is sometimes
-not yet posted; we use best-effort estimates and tag them.
+Last reviewed: 2026-05-17.
 """
 
 from __future__ import annotations
@@ -41,26 +50,75 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
 }
 
 
+# Convenience for self-hosted: if a `vllm:*` (or other self-hosted) spec
+# has no explicit pricing entry, treat it as a single-GPU server at this
+# hourly rate. The CLI's --gpu-hourly-rate flag overrides this value.
+# Default chosen as a midpoint between AWS g5 spot (~$0.30/hr) and
+# on-demand (~$1.00/hr) for "average cloud GPU".
+DEFAULT_GPU_HOURLY_RATE: float = 0.50
+
+
+def is_gpu_hour_pricing(pricing: dict | None) -> bool:
+    """Return True if `pricing` is a GPU-hour schema (vs token schema)."""
+    return pricing is not None and "gpu_hourly" in pricing
+
+
 def get_pricing(model_spec: str, override: dict | None = None) -> dict | None:
     """
-    Return `{'input': ..., 'output': ...}` USD per 1M tokens for a model.
+    Return pricing for a model spec.
 
     Lookup order:
       1. override dict if provided (full spec match)
       2. DEFAULT_PRICING
       3. None if the model isn't in either
+
+    The returned dict is either token-based ({input, output}) or GPU-hour-based
+    ({gpu_hourly, gpus}). Callers should branch on `is_gpu_hour_pricing()` or
+    let `ProbeResult.cost_per_cell` handle it.
     """
     if override is not None and model_spec in override:
         return override[model_spec]
     return DEFAULT_PRICING.get(model_spec)
 
 
+def gpu_hour_pricing(gpu_hourly: float, gpus: int = 1) -> dict:
+    """Construct a GPU-hour pricing dict (convenience constructor)."""
+    return {"gpu_hourly": float(gpu_hourly), "gpus": int(gpus)}
+
+
+def maybe_gpu_hour_fallback(
+    model_spec: str,
+    pricing: dict | None,
+    gpu_hourly_rate: float | None,
+) -> dict | None:
+    """
+    If `pricing` is None and the spec looks self-hosted (`vllm:*`,
+    `hf:*`, `openmythos`), fall back to a GPU-hour pricing dict using
+    the supplied or default hourly rate. Returns the original `pricing`
+    otherwise.
+    """
+    if pricing is not None:
+        return pricing
+    rate = gpu_hourly_rate if gpu_hourly_rate is not None else DEFAULT_GPU_HOURLY_RATE
+    if model_spec.startswith(("vllm:", "hf:")) or model_spec == "openmythos":
+        return gpu_hour_pricing(rate, gpus=1)
+    return None
+
+
 def load_pricing_file(path: str | Path) -> dict:
-    """Load a JSON pricing override file. Same schema as DEFAULT_PRICING."""
+    """Load a JSON pricing override file. Validates that each entry is either
+    a token-based ({input, output}) or GPU-hour-based ({gpu_hourly[, gpus]})
+    schema."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     for k, v in data.items():
-        if not isinstance(v, dict) or "input" not in v or "output" not in v:
+        if not isinstance(v, dict):
+            raise ValueError(f"Pricing entry for {k!r} must be a dict, got {v!r}")
+        has_token = "input" in v and "output" in v
+        has_gpu = "gpu_hourly" in v
+        if not (has_token or has_gpu):
             raise ValueError(
-                f"Pricing entry for {k!r} must be {{'input': float, 'output': float}}, got {v!r}"
+                f"Pricing entry for {k!r} must be {{'input', 'output'}} "
+                f"(token-based) or {{'gpu_hourly'[, 'gpus']}} (GPU-hour-based), "
+                f"got {v!r}"
             )
     return data
