@@ -17,6 +17,9 @@
 set -e
 
 cd /work
+# Prefer the mounted /work/depth_lens over the image's /app/depth_lens
+# so tasks added after image build (mini-csp, dict-lookup) work.
+export PYTHONPATH=/work
 
 echo "[$(date)] v2.0 overnight queue starting"
 

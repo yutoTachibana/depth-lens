@@ -21,6 +21,11 @@
 set -e
 
 cd /work
+# Make the mounted /work/depth_lens take precedence over the (older)
+# /app/depth_lens that ships with the docker image. Without this, new
+# tasks added since the image was built (mini-csp, dict-lookup) are
+# invisible to the training scripts.
+export PYTHONPATH=/work
 
 echo "[$(date)] === v2.0 Session 1 GPU chain starting ==="
 
