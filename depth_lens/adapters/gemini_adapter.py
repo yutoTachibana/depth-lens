@@ -76,7 +76,10 @@ class GeminiAdapter(ModelAdapter):
         api_key = api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "GOOGLE_API_KEY (or GEMINI_API_KEY) not set."
+                "GOOGLE_API_KEY (or GEMINI_API_KEY) not set. "
+                "`export GOOGLE_API_KEY=...` (get one at "
+                "https://aistudio.google.com/apikey) or pass api_key= to "
+                "GeminiAdapter when using the Python API."
             )
 
         self._genai = genai

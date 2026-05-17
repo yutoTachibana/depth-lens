@@ -186,14 +186,33 @@ Same workflow, just provide the corresponding `ANTHROPIC_API_KEY`.)
 To add a self-hosted candidate to the same comparison:
 
 ```bash
+# Thinking model — same reasoning_effort knob as OpenAI o-series, mixes cleanly
+docker compose -f docker/vllm-deepseek-r1-distill.yml up -d
+
+depth-lens recommend \
+    --models openai:o4-mini,vllm:deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
+    --task custom:my_eval.jsonl:first_int \
+    --target-accuracy 0.95 \
+    --compute low,medium,high \
+    --gpu-hourly-rate 0.50 \
+    --n-samples 16 --daily-calls 10000
+```
+
+For an instruct-only model that doesn't accept `reasoning_effort`
+(Llama-3-8B-Instruct, Mistral-7B, etc.), pass
+`--compute-axis max_tokens` so the vLLM adapter sweeps response-length
+caps instead:
+
+```bash
 docker compose -f docker/vllm-llama3-8b.yml up -d   # serve Llama-3-8B-Instruct AWQ
 
 depth-lens recommend \
-    --models anthropic:claude-haiku-4-5,vllm:hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 \
+    --models openai:o4-mini,vllm:hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 \
     --task custom:my_eval.jsonl:first_int \
     --target-accuracy 0.95 \
+    --compute-axis max_tokens --compute 256,1024,3000 \
     --gpu-hourly-rate 0.50 \
-    --n-samples 32 --daily-calls 10000
+    --n-samples 16 --daily-calls 10000
 ```
 
 `--gpu-hourly-rate` makes the self-hosted point comparable; the default

@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 
 # Numbers from docs/findings/v1.0-cost-savings.md
 # K-hop tier 4 (mod 97, K=14), 10,000 calls/day, accuracy = 1.00 across all rows.
-# Opus per-call costs are first-class measured; Haiku/Sonnet are derived from
-# token counts × published rates (Anthropic adapter usage-capture gap).
 rows = [
     ("Anthropic Opus 4.7\n@ thinking_budget=16384 (default-max)",   126655, "#cc4125"),
     ("Anthropic Opus 4.7\n@ thinking_budget=1024",                  75190,  "#e07b6a"),

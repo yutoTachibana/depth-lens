@@ -113,15 +113,39 @@ detector — peak n_loops always matched training depth.
 
 These four qualitatively different compute-scaling profiles, surfaced automatically by `depth-lens probe`, demonstrate why a depth-aware benchmark exists.
 
-### v1.0 — community-ready (target: +6 weeks, ¥30k–150k)
+### v1.0 — community-ready ✅ COMPLETE (2026-05-16)
 
 - [x] Batched / concurrent API eval (`parallel_map` thread-pool helper; per-adapter `max_concurrent` kwarg)
-- [ ] Paper-style benchmark sweep (5 models × 8 tasks × 6 compute levels with CIs)
+- [x] Full cross-vendor benchmark (Anthropic / OpenAI / Gemini, current + 2025 prior gen, 5 tasks each, ~$14 spend)
 - [x] Contributor docs (`CONTRIBUTING.md`): how to add a Task and an Adapter
 - [x] Docker image (`depth-lens:gpu`, plus an `api` slim-image target)
-- [x] Public findings page (`docs/findings/v0.5-openmythos.md` with committed plots). Multi-model leaderboard deferred until the API benchmark sweep runs.
+- [x] Public findings page (`docs/findings/v0.5-openmythos.md` + 5 v1.0 finding docs with committed plots and data)
 - [x] Multi-language report (`README.ja.md`, `docs/blog/intro.ja.md`)
-- [ ] arxiv writeup (optional, only if there's a real new finding worth publishing)
+- [x] GitHub Actions CI (lint + tests on push)
+
+### v1.1 — architecture comparison (2026-05-17)
+
+- [x] OpenMythos vs Claude head-to-head on built-in K-hop ([finding](docs/findings/v1.1-architecture-comparison.md))
+- [x] Per-vendor cost-vs-latency plots (Anthropic / OpenAI / Gemini) ([finding](docs/findings/v1.1-cost-vs-latency-per-vendor.md))
+- [x] OpenMythos `n_loops` sweep w/ latency capture — saturation finding measured directly
+- [x] README two-layer positioning: production cost CI (surface) + inference-time-compute scaling meter (deep)
+
+### v1.2 — self-hosted vLLM on the same Pareto (2026-05-17)
+
+- [x] vLLM adapter with two compute axes: `reasoning_effort` (thinking models) and `max_tokens` (instruct-only models like Llama-3-8B-Instruct)
+- [x] GPU-hour pricing schema (`{gpu_hourly, gpus}`) in `cost_per_cell` — self-hosted and API points land on the same cost axis
+- [x] `--gpu-hourly-rate` / `--compute-axis` flags on `recommend` + `probe`
+- [x] Docker compose recipes for Llama-3-8B-Instruct AWQ and DeepSeek-R1-Distill-Qwen-1.5B that fit a 16 GB consumer GPU
+- [x] 4-way Pareto finding doc ([v1.2-self-hosted-vs-api.md](docs/findings/v1.2-self-hosted-vs-api.md))
+- [x] User-perspective audit + first-time-user friction fixes (Windows UTF-8 stdout, click UsageError wrapping, README quickstart targets, plot-script `/work` fallbacks, reproducibility data files force-added)
+
+### v1.3 — what's next (not yet started)
+
+- [ ] PyPI publish (`pip install depth-lens` from anywhere)
+- [ ] More tasks: long-form generation, RAG re-ranking, structured-output / JSON schema, code generation
+- [ ] FLOPs-per-inference axis as an alternative to wall-clock latency (fairer cross-architecture comparison)
+- [ ] Larger OpenMythos training runs (10M / 100M params) to extend the "training distribution" boundary
+- [ ] arXiv writeup (only if a finding clearly merits it — currently the cross-paradigm Pareto is the strongest candidate)
 
 ---
 

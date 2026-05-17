@@ -179,14 +179,32 @@ low で十分か？」という問いに、Wilson 95% CI 付きの実 sweep で�
 同じ比較に self-hosted を加えるには:
 
 ```bash
+# thinking モデル ── OpenAI o-series と同じ reasoning_effort 軸でクリーンに mix
+docker compose -f docker/vllm-deepseek-r1-distill.yml up -d
+
+depth-lens recommend \
+    --models openai:o4-mini,vllm:deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
+    --task custom:my_eval.jsonl:first_int \
+    --target-accuracy 0.95 \
+    --compute low,medium,high \
+    --gpu-hourly-rate 0.50 \
+    --n-samples 16 --daily-calls 10000
+```
+
+instruct-only モデル (Llama-3-8B-Instruct, Mistral-7B 等、`reasoning_effort` 非対応)
+を含める場合は `--compute-axis max_tokens` で vLLM アダプタを応答長キャップ sweep に
+切り替え:
+
+```bash
 docker compose -f docker/vllm-llama3-8b.yml up -d   # Llama-3-8B-Instruct AWQ をサーブ
 
 depth-lens recommend \
-    --models anthropic:claude-haiku-4-5,vllm:hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 \
+    --models openai:o4-mini,vllm:hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 \
     --task custom:my_eval.jsonl:first_int \
     --target-accuracy 0.95 \
+    --compute-axis max_tokens --compute 256,1024,3000 \
     --gpu-hourly-rate 0.50 \
-    --n-samples 32 --daily-calls 10000
+    --n-samples 16 --daily-calls 10000
 ```
 
 `--gpu-hourly-rate` で self-hosted のコスト換算レートを指定。

@@ -82,7 +82,9 @@ class AnthropicAdapter(ModelAdapter):
         api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "ANTHROPIC_API_KEY not set. Provide --api-key or export ANTHROPIC_API_KEY."
+                "ANTHROPIC_API_KEY not set. `export ANTHROPIC_API_KEY=...` "
+                "(get one at https://console.anthropic.com/) or pass api_key= "
+                "to AnthropicAdapter when using the Python API."
             )
 
         self._anthropic = anthropic

@@ -90,7 +90,9 @@ class OpenAIAdapter(ModelAdapter):
         api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY not set. Provide --api-key or export OPENAI_API_KEY."
+                "OPENAI_API_KEY not set. `export OPENAI_API_KEY=...` "
+                "(get one at https://platform.openai.com/api-keys) or pass api_key= "
+                "to OpenAIAdapter when using the Python API."
             )
 
         self._openai = openai

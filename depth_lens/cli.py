@@ -135,6 +135,18 @@ def _parse_compute(s: str | None, axis_name: str) -> list[ComputeLevel] | None:
     return out
 
 
+#: Exception types that should be surfaced as click.UsageError
+#: (single-line "Error: ..." instead of a full Python traceback).
+#: Used by the @cli.group() so all subcommands inherit the behavior.
+_USER_ERROR_TYPES: tuple[type[BaseException], ...] = (
+    FileNotFoundError,   # custom: JSONL path doesn't exist
+    KeyError,            # custom: depth not present in JSONL
+    json.JSONDecodeError,  # custom: malformed JSONL
+    RuntimeError,        # adapter constructors when API key is missing
+    ValueError,          # adapter compute_axis / pricing validation
+)
+
+
 def _dump_result_json(result: ProbeResult, path: Path) -> None:
     path.write_text(
         json.dumps(
@@ -156,7 +168,21 @@ def _dump_result_json(result: ProbeResult, path: Path) -> None:
     )
 
 
-@click.group()
+class _FriendlyErrorGroup(click.Group):
+    """A click Group that converts well-known user-input errors into
+    click.UsageError so they render as a clean single-line `Error: ...`
+    instead of a Python traceback."""
+
+    def invoke(self, ctx):
+        try:
+            return super().invoke(ctx)
+        except click.ClickException:
+            raise
+        except _USER_ERROR_TYPES as e:
+            raise click.UsageError(f"{type(e).__name__}: {e}") from e
+
+
+@click.group(cls=_FriendlyErrorGroup)
 def cli():
     """depth-lens — measure reasoning depth across model families."""
 
@@ -386,9 +412,17 @@ def dashboard_cmd(port: int):
     try:
         import streamlit  # noqa: F401
     except ImportError as e:
+        # ImportError fires for both "not installed" and dep-conflict
+        # ("cannot import name X from Y"). Surface the real exception so the
+        # user can tell which case they're in instead of running `pip install
+        # streamlit` against an already-installed-but-broken environment.
         raise click.UsageError(
-            "Streamlit not installed. `pip install streamlit` or "
-            "`pip install -e .[dashboard]`."
+            f"Cannot import streamlit ({type(e).__name__}: {e}).\n"
+            "If you have not installed it: `pip install streamlit` or "
+            "`pip install -e .[dashboard]`.\n"
+            "If it IS installed, you likely have a dependency version "
+            "conflict — try `pip install --upgrade streamlit starlette` or "
+            "reinstall in a fresh venv."
         ) from e
 
     dash = Path(__file__).parent / "dashboard.py"
@@ -431,6 +465,14 @@ def dashboard_cmd(port: int):
          "(vllm:*, hf:*, openmythos) when no explicit pricing entry is provided. "
          "Default: 0.50 (midpoint between AWS g5 spot and on-demand).",
 )
+@click.option(
+    "--compute-axis", default=None,
+    type=click.Choice(["reasoning_effort", "max_tokens"]),
+    help="Compute knob for vLLM adapters in --models. Only the vllm:* specs "
+         "in --models read this; other adapters use their native knob. "
+         "Use 'max_tokens' when including an instruct-only model like "
+         "Llama-3-8B-Instruct (it does not accept reasoning_effort).",
+)
 def recommend_cmd(
     models: str,
     task: str,
@@ -444,6 +486,7 @@ def recommend_cmd(
     daily_calls: int | None,
     max_latency: float | None,
     gpu_hourly_rate: float | None,
+    compute_axis: str | None,
 ):
     """
     Find the cheapest model + compute setting that meets your accuracy bar.
@@ -490,7 +533,7 @@ def recommend_cmd(
                 f"  [info] self-hosted spec — costing at ${spec_pricing['gpu_hourly']:.2f}/GPU-hour "
                 f"× {spec_pricing.get('gpus', 1)} GPU(s)"
             )
-        adapter = _build_adapter(spec, task)
+        adapter = _build_adapter(spec, task, compute_axis=compute_axis)
         compute_grid = _parse_compute(compute, adapter.compute_axis_name)
         r = probe(
             adapter=adapter,
