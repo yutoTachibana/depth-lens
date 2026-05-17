@@ -31,6 +31,12 @@ def _install_fake_gemini(monkeypatch, response_text: str = "Final answer: 7"):
 
     response = MagicMock()
     response.text = response_text
+    # Match google-genai's `usage_metadata` shape.
+    usage_md = MagicMock()
+    usage_md.prompt_token_count = 100
+    usage_md.candidates_token_count = 50
+    usage_md.thoughts_token_count = 200
+    response.usage_metadata = usage_md
 
     class FakeClient:
         def __init__(self, *a, **kw):
@@ -56,6 +62,10 @@ def test_gemini_predict(monkeypatch):
     assert len(preds) == 1
     assert preds[0].text == "7"
     assert preds[0].metadata["thinking_budget_tokens"] == 1024
+    # Verify usage was captured from usage_metadata, with thinking folded
+    # into output (Gemini bills thinking at the output rate).
+    u = preds[0].metadata["usage"]
+    assert u == {"input_tokens": 100, "output_tokens": 250, "thinking_tokens": 200}
 
 
 def test_gemini_missing_key(monkeypatch):

@@ -146,10 +146,27 @@ class GeminiAdapter(ModelAdapter):
                 )
                 text = getattr(resp, "text", "") or ""
                 final = _extract_final_answer(text)
+                # google-genai exposes usage as `usage_metadata`, not `usage`.
+                # Translate to the {input_tokens, output_tokens, thinking_tokens}
+                # shape that depth_lens.metrics._extract_token_usage recognizes,
+                # folding thinking tokens into output for cost calc (Gemini bills
+                # thinking tokens at the output rate).
+                usage_md = getattr(resp, "usage_metadata", None)
+                usage = None
+                if usage_md is not None:
+                    prompt_tok = getattr(usage_md, "prompt_token_count", 0) or 0
+                    cand_tok = getattr(usage_md, "candidates_token_count", 0) or 0
+                    think_tok = getattr(usage_md, "thoughts_token_count", 0) or 0
+                    usage = {
+                        "input_tokens": int(prompt_tok),
+                        "output_tokens": int(cand_tok) + int(think_tok),
+                        "thinking_tokens": int(think_tok),
+                    }
                 meta = {
                     "thinking_budget_tokens": budget,
                     "model": self._model,
                     "raw_text": text,
+                    "usage": usage,
                 }
                 if self._use_thinking_level:
                     meta["thinking_level"] = _budget_to_level(budget)
