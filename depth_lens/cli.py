@@ -105,9 +105,23 @@ def _build_adapter(
 
 
 def _parse_compute(s: str | None, axis_name: str) -> list[ComputeLevel] | None:
+    """Parse a comma-separated --compute string.
+
+    Values that parse as ints are used directly as ComputeLevel.value
+    (e.g., thinking_budget=1024 or max_tokens=256). Non-numeric values
+    (e.g., effort=low) get a rank index as the value so plots can sort
+    them; the original string is preserved in the label."""
     if not s:
         return None
-    return [ComputeLevel(int(v), f"{axis_name}={v}") for v in s.split(",") if v.strip()]
+    out: list[ComputeLevel] = []
+    for rank, v in enumerate(p for p in s.split(",") if p.strip()):
+        v = v.strip()
+        try:
+            value: int | float = int(v)
+        except ValueError:
+            value = rank
+        out.append(ComputeLevel(value, f"{axis_name}={v}"))
+    return out
 
 
 def _dump_result_json(result: ProbeResult, path: Path) -> None:
@@ -214,13 +228,13 @@ def probe_cmd(
     eff = result.effective_depth(0.5)
     click.echo("")
     click.echo("---- summary ----")
-    click.echo(f"effective depth (≥0.5 acc at some compute): {eff}")
+    click.echo(f"effective depth (>=0.5 acc at some compute): {eff}")
     for d in result.depths:
         over = result.overthinking(d)
         if over:
             click.echo(
                 f"overthinking @ depth {d}: peak={over['peak_compute']} (acc={over['peak_accuracy']:.2f})"
-                f"  →  last={over['last_compute']} (acc={over['last_accuracy']:.2f})"
+                f"  ->  last={over['last_compute']} (acc={over['last_accuracy']:.2f})"
             )
 
 

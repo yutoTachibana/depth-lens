@@ -178,6 +178,7 @@ the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
 | [Cost vs latency: OpenAI gpt-5-mini cheaper-per-token but 3× slower than o4-mini at same accuracy](docs/findings/v1.0-cost-savings.md#cost-is-one-axis--latency-is-another) | Picking by $/token alone burns user-facing UX latency; the Pareto frontier on K-hop tier 4 has only 2 points |
 | [Per-vendor cost-vs-latency plots (Anthropic / OpenAI / Gemini) + OpenMythos loops-vs-accuracy](docs/findings/v1.1-cost-vs-latency-per-vendor.md) | The looped-transformer "more loops = deeper reasoning" claim **saturates** at training_max_loop_iters; latency keeps growing, accuracy doesn't. depth-lens caught this. |
 | [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | Within training distribution, a 925K-param looped model is **~10,000× faster than Claude at same accuracy**. Outside it, the API dominates. The cross-paradigm trade depth-lens is built to surface. |
+| [**Self-hosted vLLM (Llama-3-8B / DeepSeek-R1-Distill) vs hosted APIs — one Pareto**](docs/findings/v1.2-self-hosted-vs-api.md) | Llama-3-8B AWQ self-hosted is the **cheapest passing config in the entire study at tier 1** ($0.028/1k calls), but **0% accuracy at tier 4**. DeepSeek-R1-Distill-1.5B hits 0.75 on tier 4. gemini-3.1-flash-lite dominates everything at tier 4 ($0.11/1k calls, 1.00 acc). depth-lens makes build-vs-buy a chart, not a guess. |
 | [Haiku 4.5 collapses on hard 2-SAT at default budget](docs/findings/v1.0-mini-csp-cross-vendor.md) | If you use Haiku for constraint-style problems, set `budget≥4096` or pay 2× error rate |
 | [Gemini 2.5 Flash was uniquely weak vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced) | When we tested 2025-era models from all 3 vendors, Anthropic Sonnet 4 (May 2025) and o3-mini (Jan 2025) were already at ceiling on K-hop. Only Gemini Flash collapsed. 3.1 Flash-Lite closes the gap. |
 | [Claude Opus 4.7 cost varies 10× across (depth × budget) at fixed accuracy](docs/findings/v1.0-anthropic-cross-vendor.md) | Maxing the budget is a strict cost loss for many task classes |
@@ -195,7 +196,7 @@ the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
 | `anthropic:<model>` | `thinking_budget_tokens` | API |
 | `openai:<model>` | `reasoning_effort` | API |
 | `gemini:<model>` | `thinking_budget_tokens` (2.5) / auto-mapped to `thinking_level` (3.x) | API |
-| `vllm:<model>` | `reasoning_effort` (OpenAI-compatible local server) | self-hosted |
+| `vllm:<model>` | `reasoning_effort` for thinking models or `max_tokens` for instruct-only (OpenAI-compatible local server) | self-hosted ($/GPU-hour) |
 | `hf:<hf-model-id>` | `max_thinking_tokens` (CoT length) | local GPU |
 | `openmythos` | `n_loops` (Recurrent-Depth Transformer) | local GPU |
 

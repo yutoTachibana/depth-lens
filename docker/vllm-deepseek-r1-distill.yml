@@ -1,5 +1,10 @@
 services:
   vllm-deepseek-r1-distill:
+    # 1.5B is chosen so the model fits a 16 GB consumer GPU (4080 SUPER)
+    # with enough headroom for a meaningful KV cache. The 7B variant in
+    # fp16 needs ~14 GB for weights alone and leaves negative KV cache
+    # room — see depth-lens v1.2 finding for the OOM trace. For larger
+    # GPUs swap in deepseek-ai/DeepSeek-R1-Distill-Qwen-7B.
     image: vllm/vllm-openai:latest
     container_name: vllm-deepseek-r1-distill
     runtime: nvidia
@@ -20,13 +25,12 @@ services:
               capabilities: [gpu]
     command:
       - --model
-      - deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+      - deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
       - --max-model-len
       - "8192"
       - --gpu-memory-utilization
-      - "0.90"
+      - "0.85"
       - --dtype
       - half
-      - --enable-reasoning
       - --reasoning-parser
       - deepseek_r1
