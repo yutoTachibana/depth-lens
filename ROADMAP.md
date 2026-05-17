@@ -139,13 +139,78 @@ These four qualitatively different compute-scaling profiles, surfaced automatica
 - [x] 4-way Pareto finding doc ([v1.2-self-hosted-vs-api.md](docs/findings/v1.2-self-hosted-vs-api.md))
 - [x] User-perspective audit + first-time-user friction fixes (Windows UTF-8 stdout, click UsageError wrapping, README quickstart targets, plot-script `/work` fallbacks, reproducibility data files force-added)
 
-### v1.3 — what's next (not yet started)
+### v2.0 — "Inference-time compute scaling laws" (planned 1-2 session sprint)
 
-- [ ] PyPI publish (`pip install depth-lens` from anywhere)
-- [ ] More tasks: long-form generation, RAG re-ranking, structured-output / JSON schema, code generation
-- [ ] FLOPs-per-inference axis as an alternative to wall-clock latency (fairer cross-architecture comparison)
-- [ ] Larger OpenMythos training runs (10M / 100M params) to extend the "training distribution" boundary
-- [ ] arXiv writeup (only if a finding clearly merits it — currently the cross-paradigm Pareto is the strongest candidate)
+**Strategic pivot**: instead of broadening (more adapters, more API
+features), v2.0 focuses on *one shareable artifact* that doubles as
+the OSS's recognizable visual: **a 3-paradigm scaling-law plot
+that no other tool currently produces.**
+
+Goal: ~50-100 GitHub stars from one blog post + tweet thread that
+points at this plot, with depth-lens visibly the toolkit that
+produced it.
+
+**Scope:**
+
+- **3 paradigms on one chart**:
+  (a) Looped (OpenMythos), (b) Self-hosted vLLM
+  (Llama-3-8B-AWQ + DeepSeek-R1-Distill-Qwen-1.5B),
+  (c) Token-CoT API (Anthropic Haiku/Sonnet, OpenAI o4-mini/gpt-5-mini,
+  Gemini 3.1 Flash-Lite).
+- **3 OpenMythos sizes**: 1M / 10M / 100M params
+  (925K was the v1.1 baseline; this extends the curve).
+- **5 tasks**: K-hop, parity, state-tracking, mini-CSP, NEW
+  structured-output.
+- **FLOPs axis** (lightweight): accurate for OpenMythos/vLLM (counted
+  from architecture); estimated for API (published param × token
+  count, with explicit caveat).
+
+**3 deliverable plots:**
+
+1. **Scaling-law plot**: x = log(FLOPs/inference), y = accuracy. One
+   curve per paradigm, per task. Shows where each paradigm wins.
+2. **Looped size scaling curve**: at what OpenMythos parameter count
+   does looped catch a frontier API on each task.
+3. **TCO crossover plot**: $/correct-answer × latency, with the
+   crossover region (where self-hosted starts beating API) marked.
+
+**Writeup**: blog post + tweet thread + README v2.0 section.
+No arXiv unless community response signals it merits one.
+
+**Sessions:**
+
+- **Session 1** (~4-5 hr live): implement FLOPs counters + structured-
+  output task; kick off 1M and 10M training across all 5 tasks
+  (~4 hr GPU); kick off 100M × K-hop in background; run all API and
+  vLLM probes; first-pass plots.
+- **Overnight**: 100M × remaining 4 tasks training continues in
+  background (~12 hr GPU).
+- **Session 2** (~3-4 hr live): collect 100M results; finalize three
+  plots; write blog post; update README + ROADMAP; tag v2.0.
+
+**Honest bottleneck**: 100M × 5 tasks = ~15 GPU-hours. Wall-clock
+gap between sessions is structural, not laziness.
+
+### v2.1+ — backlog (after v2.0 ships and we see community signal)
+
+- [ ] PyPI publish (`pip install depth-lens` from anywhere) — pull
+      forward if HN/X traffic warrants it
+- [ ] Code-generation task (Python single-function, exec + unit-test
+      scoring) — defer from v2.0 due to scorer complexity
+- [ ] RAG re-ranking task + scorer
+- [ ] Long-form generation evaluation (LLM-as-judge or ROUGE-class)
+- [ ] More adapters: AWS Bedrock, Groq, Together, Azure OpenAI,
+      Mistral La Plateforme
+- [ ] Continuous regression CI: GitHub Action template that re-runs
+      `recommend` on a saved JSONL and fails the build when accuracy
+      drops or cost rises
+- [ ] Production-traffic sampler: collect a fraction of live prompts
+      into a rolling bench (with PII redaction helpers)
+- [ ] Safe-direction diagnostic: `.misclassification_direction()` on
+      ProbeResult, surfacing whether errors trend toward the "safe"
+      class (insight surfaced by the v1.2 tenant-urgency case study)
+- [ ] arXiv preprint or workshop submission — only if v2.0 traction
+      makes it worth the extra ~1-2 weeks of formal writeup
 
 ---
 
