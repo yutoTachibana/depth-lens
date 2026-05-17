@@ -51,12 +51,16 @@ SIZE_CONFIGS = {
     ),
 }
 
-# Training step counts scale with size so each model sees a comparable
-# *number of training sequences*: 8000 steps × batch 32 (100M) gave only
-# 256K sequences vs 1M (4000 × 256 = 1024K). 100M was severely under-
-# trained on the original budget; bumped to 24000 steps so 100M sees
-# 768K sequences (roughly parity with 1M and 10M).
-STEPS_BY_SIZE = {"1M": 4000, "10M": 6000, "100M": 24000}
+# Training step counts × batch size are chosen so each model sees
+# at least ~1M training sequences ("controlled comparison" budget,
+# not Chinchilla-style):
+#   1M:   4000 × 256 = 1024K sequences
+#   10M:  8000 × 128 = 1024K  (was 6000 × 128 = 768K — bumped)
+#   100M: 24000 × 32 = 768K   (was 8000 × 32 = 256K — bumped 3×)
+# This means the scaling-law plot compares architectures at "the
+# point where all sizes have effectively converged on these tasks,"
+# not in the under-trained regime.
+STEPS_BY_SIZE = {"1M": 4000, "10M": 8000, "100M": 24000}
 
 # Batch sizes that fit a 16 GB GPU at each scale.
 BATCH_BY_SIZE = {"1M": 256, "10M": 128, "100M": 32}
