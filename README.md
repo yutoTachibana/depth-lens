@@ -308,6 +308,7 @@ and a looped transformer to the same Pareto. **Total spend: ~$14 API
 
 | Finding | Why it matters |
 |---|---|
+| [**v2.0 — Inference-time compute scaling laws across 3 paradigms**](docs/findings/v2.0-scaling-law.md) | Token-CoT API · Self-hosted vLLM · Looped (OpenMythos 1M/10M/100M) all on **one FLOPs axis** across 5 tasks. The only OSS comparison of all three. *Headline numbers fill in as the v2.0 measurement run completes.* |
 | [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | Within training distribution, a 925K-param looped model is **~10,000× faster than Claude at same accuracy**. Outside it, the API dominates |
 | [OpenMythos loops-vs-accuracy saturation](docs/findings/v1.1-cost-vs-latency-per-vendor.md#openmythos-looping-pays-latency-but-the-more-loops--more-depth) | The looped-transformer "more loops = deeper reasoning" claim **saturates** at `training_max_loop_iters`; latency keeps growing, accuracy doesn't |
 | [OpenMythos extrapolates 1-2 hops past training depth on K-hop](docs/findings/v0.5-openmythos.md) | The seed experiment that motivated the project — same data, same axes |

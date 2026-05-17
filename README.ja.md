@@ -295,6 +295,7 @@ looped transformer も同じ Pareto に追加。**合計コスト: API ~$14 + �
 
 | 発見 | 意味 |
 |---|---|
+| [**v2.0 ── 推論時計算量 × 3 paradigm scaling law**](docs/findings/v2.0-scaling-law.md) | Token-CoT API · Self-hosted vLLM · Looped (OpenMythos 1M/10M/100M) を **同じ FLOPs 軸** で 5 タスク横断比較。3 paradigm を 1 つの軸に乗せる唯一の OSS 比較。*ヘッドライン数字は v2.0 計測完了後に埋め込み* |
 | [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | 訓練 distribution 内では 925K パラメータの looped model が **同精度 Claude より ~10,000× 速い**。外では API が圧倒 |
 | [OpenMythos loops-vs-accuracy 飽和](docs/findings/v1.1-cost-vs-latency-per-vendor.md#openmythos-looping-pays-latency-but-the-more-loops--more-depth) | looped transformer の「ループ増やせば深い推論」主張は `training_max_loop_iters` で **飽和**。latency は線形に増えるが精度は伸びない |
 | [OpenMythos は K-hop で訓練深度 +1〜2 hops まで外挿](docs/findings/v0.5-openmythos.md) | プロジェクト発端となった seed 実験。同じデータ、同じ軸で |
