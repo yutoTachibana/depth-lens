@@ -69,6 +69,38 @@ cost of a sandwich.
 We sit in the niche where none of the above covers: **the cost-vs-quality
 curve of frontier reasoning APIs on data you actually run in production**.
 
+## …and also: a meter for inference-time-compute scaling across paradigms
+
+The other audience for depth-lens — and the project's original motivation —
+is **researchers and architecture explorers**. A core open question in
+2026 is:
+
+> **Can inference-time compute substitute for parameter count?**
+
+Two paradigms have emerged to answer "yes":
+
+| Paradigm | Implementation | How compute is spent |
+|---|---|---|
+| **Token-level chain-of-thought** | Anthropic `thinking_budget`, OpenAI `reasoning_effort`, Gemini `thinking_level` | Generate intermediate tokens before answering |
+| **Latent-space recursion** | [OpenMythos](https://github.com/kyegomez/OpenMythos), Parcae, Recurrent-Depth Transformers | Apply the same weights T times in latent space, no tokens emitted |
+
+**depth-lens is the only OSS tool that probes both on the same task with
+the same accuracy axis.** Bring an OpenMythos checkpoint AND an
+extended-thinking API; sweep their respective compute knobs; see
+which architecture pays the better latency / cost / accuracy
+trade on your workload. The bundled `openmythos` adapter even
+trains a small model for you if you don't have a checkpoint.
+
+This unlocks comparisons no other tool surfaces:
+
+- *"Does looping a 925K-param model 8 times beat a 1.5B HF model with CoT?"*
+- *"For my task, is the looped-transformer thesis paying off, or does
+  paying Anthropic for thinking dominate?"*
+- *"At what task-depth does latent recursion overtake token-level CoT?"*
+
+For a concrete worked example, see
+[OpenMythos vs Claude Haiku head-to-head on K-hop](docs/findings/v1.1-architecture-comparison.md).
+
 ## 30-second install + recommend the cheapest model
 
 ```bash
@@ -145,6 +177,7 @@ the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
 | [Switching from Opus 4.7 to Haiku 4.5 saves ~$123k/year on a 10k-call/day task](docs/findings/v1.0-cost-savings.md) | The 4 concrete "tier-downgrade" savings switches depth-lens surfaces, in $ |
 | [Cost vs latency: OpenAI gpt-5-mini cheaper-per-token but 3× slower than o4-mini at same accuracy](docs/findings/v1.0-cost-savings.md#cost-is-one-axis--latency-is-another) | Picking by $/token alone burns user-facing UX latency; the Pareto frontier on K-hop tier 4 has only 2 points |
 | [Per-vendor cost-vs-latency plots (Anthropic / OpenAI / Gemini) + OpenMythos loops-vs-accuracy](docs/findings/v1.1-cost-vs-latency-per-vendor.md) | The looped-transformer "more loops = deeper reasoning" claim **saturates** at training_max_loop_iters; latency keeps growing, accuracy doesn't. depth-lens caught this. |
+| [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | Within training distribution, a 925K-param looped model is **~10,000× faster than Claude at same accuracy**. Outside it, the API dominates. The cross-paradigm trade depth-lens is built to surface. |
 | [Haiku 4.5 collapses on hard 2-SAT at default budget](docs/findings/v1.0-mini-csp-cross-vendor.md) | If you use Haiku for constraint-style problems, set `budget≥4096` or pay 2× error rate |
 | [Gemini 2.5 Flash was uniquely weak vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced) | When we tested 2025-era models from all 3 vendors, Anthropic Sonnet 4 (May 2025) and o3-mini (Jan 2025) were already at ceiling on K-hop. Only Gemini Flash collapsed. 3.1 Flash-Lite closes the gap. |
 | [Claude Opus 4.7 cost varies 10× across (depth × budget) at fixed accuracy](docs/findings/v1.0-anthropic-cross-vendor.md) | Maxing the budget is a strict cost loss for many task classes |
