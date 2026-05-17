@@ -1,0 +1,56 @@
+{
+  "task": "custom:bench",
+  "adapter": "anthropic:claude-sonnet-4-6",
+  "compute_axis": "thinking_budget_tokens",
+  "depths": [
+    4
+  ],
+  "compute_grid": [
+    {
+      "value": 1024,
+      "label": "thinking_budget_tokens=1024"
+    },
+    {
+      "value": 4096,
+      "label": "thinking_budget_tokens=4096"
+    },
+    {
+      "value": 16384,
+      "label": "thinking_budget_tokens=16384"
+    }
+  ],
+  "accuracy": [
+    [
+      1.0,
+      1.0,
+      1.0
+    ]
+  ],
+  "n_per_cell": 16,
+  "latency_per_cell": [
+    [
+      1.0760626121864334,
+      1.1094535864376667,
+      1.142230885248864
+    ]
+  ],
+  "tokens_per_cell": [
+    [
+      {
+        "input": 211.75,
+        "output": 833.875,
+        "thinking": 164.1875
+      },
+      {
+        "input": 211.75,
+        "output": 840.0625,
+        "thinking": 153.375
+      },
+      {
+        "input": 211.75,
+        "output": 859.75,
+        "thinking": 175.0
+      }
+    ]
+  ]
+}

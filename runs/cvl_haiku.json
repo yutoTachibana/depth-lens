@@ -1,0 +1,56 @@
+{
+  "task": "custom:bench",
+  "adapter": "anthropic:claude-haiku-4-5",
+  "compute_axis": "thinking_budget_tokens",
+  "depths": [
+    4
+  ],
+  "compute_grid": [
+    {
+      "value": 1024,
+      "label": "thinking_budget_tokens=1024"
+    },
+    {
+      "value": 4096,
+      "label": "thinking_budget_tokens=4096"
+    },
+    {
+      "value": 16384,
+      "label": "thinking_budget_tokens=16384"
+    }
+  ],
+  "accuracy": [
+    [
+      1.0,
+      1.0,
+      1.0
+    ]
+  ],
+  "n_per_cell": 16,
+  "latency_per_cell": [
+    [
+      0.5974938337512867,
+      0.7998091859972192,
+      1.0080731922480481
+    ]
+  ],
+  "tokens_per_cell": [
+    [
+      {
+        "input": 211.75,
+        "output": 987.1875,
+        "thinking": 212.8125
+      },
+      {
+        "input": 211.75,
+        "output": 1336.8125,
+        "thinking": 293.6875
+      },
+      {
+        "input": 211.75,
+        "output": 1573.625,
+        "thinking": 339.6875
+      }
+    ]
+  ]
+}

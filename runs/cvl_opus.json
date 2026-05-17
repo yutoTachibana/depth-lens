@@ -1,0 +1,56 @@
+{
+  "task": "custom:bench",
+  "adapter": "anthropic:claude-opus-4-7",
+  "compute_axis": "thinking_budget_tokens",
+  "depths": [
+    4
+  ],
+  "compute_grid": [
+    {
+      "value": 1024,
+      "label": "thinking_budget_tokens=1024"
+    },
+    {
+      "value": 4096,
+      "label": "thinking_budget_tokens=4096"
+    },
+    {
+      "value": 16384,
+      "label": "thinking_budget_tokens=16384"
+    }
+  ],
+  "accuracy": [
+    [
+      1.0,
+      1.0,
+      1.0
+    ]
+  ],
+  "n_per_cell": 16,
+  "latency_per_cell": [
+    [
+      0.5172219558735378,
+      0.8039169194998976,
+      0.795647686063603
+    ]
+  ],
+  "tokens_per_cell": [
+    [
+      {
+        "input": 228.75,
+        "output": 231.125,
+        "thinking": 1.0
+      },
+      {
+        "input": 228.75,
+        "output": 312.9375,
+        "thinking": 1.0
+      },
+      {
+        "input": 228.75,
+        "output": 419.375,
+        "thinking": 1.0
+      }
+    ]
+  ]
+}

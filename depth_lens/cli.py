@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import sys
 from pathlib import Path
 
 import click
@@ -11,6 +13,15 @@ import click
 from depth_lens.adapters.base import ComputeLevel, ModelAdapter
 from depth_lens.metrics import ProbeResult, probe
 from depth_lens.tasks import get_task
+
+# Force UTF-8 stdout/stderr on Windows. The default cp932 console can't encode
+# the em-dashes, arrows, and status emoji we use in help text and result tables
+# — without this, `depth-lens --help` crashes on a fresh Windows box.
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "buffer"):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "buffer"):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 
 def _build_adapter(
@@ -156,7 +167,12 @@ def cli():
 
 
 @cli.command("probe")
-@click.option("--model", "-m", required=True, help="'openmythos' or 'hf:<model-id>'")
+@click.option(
+    "--model", "-m", required=True,
+    help="Adapter spec: 'openmythos', 'hf:<model-id>', "
+         "'anthropic:<model>', 'openai:<model>', 'gemini:<model>', or "
+         "'vllm:<model>' (OpenAI-compatible local server).",
+)
 @click.option("--task", "-t", default="k-hop", help="Task name (default: k-hop).")
 @click.option("--depths", default="2,3,4,5,6,7,8,10", help="Comma-separated task depths.")
 @click.option("--compute", default=None, help="Comma-separated compute levels.")

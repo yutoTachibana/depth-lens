@@ -1,0 +1,56 @@
+{
+  "task": "custom:bench",
+  "adapter": "gemini:gemini-2.5-flash",
+  "compute_axis": "thinking_budget_tokens",
+  "depths": [
+    4
+  ],
+  "compute_grid": [
+    {
+      "value": 1024,
+      "label": "thinking_budget_tokens=1024"
+    },
+    {
+      "value": 4096,
+      "label": "thinking_budget_tokens=4096"
+    },
+    {
+      "value": 16384,
+      "label": "thinking_budget_tokens=16384"
+    }
+  ],
+  "accuracy": [
+    [
+      0.0625,
+      0.0625,
+      0.0
+    ]
+  ],
+  "n_per_cell": 16,
+  "latency_per_cell": [
+    [
+      0.9214127142477082,
+      1.51222939512445,
+      1.4357881308114884
+    ]
+  ],
+  "tokens_per_cell": [
+    [
+      {
+        "input": 189.0625,
+        "output": 1698.1875,
+        "thinking": 919.625
+      },
+      {
+        "input": 189.0625,
+        "output": 2605.0625,
+        "thinking": 1822.0625
+      },
+      {
+        "input": 189.0625,
+        "output": 2550.75,
+        "thinking": 1764.75
+      }
+    ]
+  ]
+}

@@ -120,49 +120,61 @@ git clone https://github.com/yutoTachibana/depth-lens.git
 cd depth-lens
 pip install -e .[anthropic,openai,gemini]
 
-export ANTHROPIC_API_KEY=...     # 必要に応じて OPENAI_API_KEY / GOOGLE_API_KEY も
+export OPENAI_API_KEY=...     # 必要に応じて ANTHROPIC_API_KEY / GOOGLE_API_KEY も
 
 # あなたの本番プロンプトを JSONL 1 行 1 件で
 cat > my_eval.jsonl <<'EOF'
-{"prompt": "Compute (47 * 23 + 19) mod 31.", "target": "5", "depth": 1}
-{"prompt": "Compute ((11 * 7 - 4) * 3 + 2) mod 41.", "target": "26", "depth": 1}
+{"prompt": "Compute (47 * 23 + 19) mod 31.", "target": "15", "depth": 1}
+{"prompt": "Compute ((11 * 7 - 4) * 3 + 2) mod 41.", "target": "16", "depth": 1}
+{"prompt": "Compute (13 * 17 + 8) mod 29.", "target": "26", "depth": 1}
+{"prompt": "Compute ((5 * 9 + 7) * 4 - 3) mod 23.", "target": "21", "depth": 1}
+{"prompt": "Compute (100 - 7 * 11) mod 19.", "target": "4", "depth": 1}
 EOF
 
 # あなたのデータで 95% 精度を満たす最安モデルを探す
 depth-lens recommend \
-    --models anthropic:claude-haiku-4-5,anthropic:claude-sonnet-4-6,anthropic:claude-opus-4-7 \
+    --models openai:gpt-5-mini,openai:o4-mini \
     --task custom:my_eval.jsonl:first_int \
     --target-accuracy 0.95 \
-    --max-latency 2.0 \
-    --n-samples 32 \
+    --max-latency 3.0 \
+    --n-samples 16 \
     --daily-calls 10000
 ```
 
 ```
-========================================================================================
-Target accuracy ≥ 0.95
+============================================================================================
+Target accuracy ≥ 0.95  ·  Max latency ≤ 3.00s/pred
 Probed 6 configurations, 6 passing.
-========================================================================================
+============================================================================================
 
 ✅ Passing (cheapest first):
-  anthropic:claude-haiku-4-5    d=1  thinking_budget_tokens=1024   acc=1.00  $1.432/k-pred   0.37s/pred  ← cheapest
-  anthropic:claude-haiku-4-5    d=1  thinking_budget_tokens=16384  acc=1.00  $1.582/k-pred   0.47s/pred
-  anthropic:claude-sonnet-4-6   d=1  thinking_budget_tokens=1024   acc=1.00  $2.536/k-pred   0.64s/pred
-  anthropic:claude-sonnet-4-6   d=1  thinking_budget_tokens=16384  acc=1.00  $2.835/k-pred   0.67s/pred
-  anthropic:claude-opus-4-7     d=1  thinking_budget_tokens=1024   acc=1.00  $3.396/k-pred   0.45s/pred
-  anthropic:claude-opus-4-7     d=1  thinking_budget_tokens=16384  acc=1.00  $4.496/k-pred   0.42s/pred
+  openai:gpt-5-mini     d=1  effort=low      acc=1.00   $0.354/k-pred   0.45s/pred  ← cheapest
+  openai:gpt-5-mini     d=1  effort=medium   acc=1.00   $0.485/k-pred   0.59s/pred
+  openai:o4-mini        d=1  effort=low      acc=1.00   $0.736/k-pred   0.29s/pred  ← fastest
+  openai:gpt-5-mini     d=1  effort=high     acc=1.00   $0.886/k-pred   0.69s/pred
+  openai:o4-mini        d=1  effort=medium   acc=1.00   $1.061/k-pred   0.37s/pred
+  openai:o4-mini        d=1  effort=high     acc=1.00   $1.365/k-pred   0.40s/pred
 
-========================================================================================
+⚡ Cost-vs-speed tradeoff among passing configs:
+  Cheapest is 1.5× slower than fastest; fastest costs 2.1× more per call.
+
+============================================================================================
 At 10,000 calls/day with the cheapest passing config:
-  anthropic:claude-haiku-4-5 @ thinking_budget_tokens=1024
-  → $14.32/day  $5,226/year
+  openai:gpt-5-mini @ effort=low
+  → $3.54/day  $1,291/year
 
-  Switching from anthropic:claude-opus-4-7 @ thinking_budget_tokens=16384 ($44.96/day)
-  saves $30.65/day = $11,185/year (68% reduction)
+  Switching from openai:o4-mini @ effort=high ($13.65/day)
+  saves $10.11/day = $3,691/year (74% reduction)
 ```
 
-これだけです。「Opus は本当に Haiku の 4 倍の価値があるのか？」
-という問いに、Wilson 95% CI 付きの実 sweep で根拠を持って答えられる状態になります。
+これだけです。「o4-mini の high effort が本当に必要か、それとも gpt-5-mini の
+low で十分か？」という問いに、Wilson 95% CI 付きの実 sweep で根拠を持って
+答えられる状態になります。
+
+(`--models` を
+`anthropic:claude-haiku-4-5,anthropic:claude-sonnet-4-6,anthropic:claude-opus-4-7`
+に差し替えると、ヒーロー plot を生んだ Opus→Haiku 比較が走ります。
+同じワークフロー、必要なのは `ANTHROPIC_API_KEY` だけ。)
 
 同じ比較に self-hosted を加えるには:
 

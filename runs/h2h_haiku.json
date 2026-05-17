@@ -1,0 +1,140 @@
+{
+  "task": "k-hop",
+  "adapter": "anthropic:claude-haiku-4-5",
+  "compute_axis": "thinking_budget_tokens",
+  "depths": [
+    2,
+    4,
+    6,
+    8
+  ],
+  "compute_grid": [
+    {
+      "value": 1024,
+      "label": "thinking_budget_tokens=1024"
+    },
+    {
+      "value": 4096,
+      "label": "thinking_budget_tokens=4096"
+    },
+    {
+      "value": 16384,
+      "label": "thinking_budget_tokens=16384"
+    }
+  ],
+  "accuracy": [
+    [
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0
+    ],
+    [
+      1.0,
+      1.0,
+      1.0
+    ]
+  ],
+  "n_per_cell": 16,
+  "latency_per_cell": [
+    [
+      0.3293771482494776,
+      0.468970180123506,
+      0.3807790720002231
+    ],
+    [
+      0.4285476182503771,
+      0.47433672475017374,
+      0.4115018573102134
+    ],
+    [
+      0.4898886113114713,
+      0.36592276918781863,
+      0.7769555601244065
+    ],
+    [
+      0.40837861612635606,
+      0.5064084313762578,
+      0.5177919848119927
+    ]
+  ],
+  "tokens_per_cell": [
+    [
+      {
+        "input": 163.0,
+        "output": 212.6875,
+        "thinking": 54.375
+      },
+      {
+        "input": 163.0,
+        "output": 198.4375,
+        "thinking": 52.4375
+      },
+      {
+        "input": 163.0,
+        "output": 214.1875,
+        "thinking": 60.625
+      }
+    ],
+    [
+      {
+        "input": 169.0,
+        "output": 318.25,
+        "thinking": 78.5
+      },
+      {
+        "input": 169.0,
+        "output": 328.375,
+        "thinking": 83.125
+      },
+      {
+        "input": 169.0,
+        "output": 334.125,
+        "thinking": 88.375
+      }
+    ],
+    [
+      {
+        "input": 175.0,
+        "output": 408.875,
+        "thinking": 91.5625
+      },
+      {
+        "input": 175.0,
+        "output": 443.8125,
+        "thinking": 108.3125
+      },
+      {
+        "input": 175.0,
+        "output": 498.6875,
+        "thinking": 127.6875
+      }
+    ],
+    [
+      {
+        "input": 181.0,
+        "output": 480.4375,
+        "thinking": 107.9375
+      },
+      {
+        "input": 181.0,
+        "output": 515.5625,
+        "thinking": 117.625
+      },
+      {
+        "input": 181.0,
+        "output": 573.5,
+        "thinking": 138.9375
+      }
+    ]
+  ]
+}

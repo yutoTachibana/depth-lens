@@ -6,19 +6,25 @@ build-backend = "hatchling.build"
 
 [project]
 name = "depth-lens"
-version = "1.1.0"
-description = "Measure and visualize reasoning depth across model families (looped transformers, extended-thinking APIs, agent loops)."
+version = "1.2.0"
+description = "Cost-vs-accuracy CI for LLM ops. Pick the cheapest API tier, compare self-hosted vLLM vs cloud APIs on one Pareto, and benchmark looped transformers vs token-level CoT — all on your own data with Wilson 95% CIs."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [{ name = "yutoTachibana" }]
 keywords = [
+    "llm",
+    "llm-evaluation",
+    "inference-compute",
+    "cost-optimization",
+    "build-vs-buy",
+    "vllm",
+    "anthropic",
+    "openai",
+    "gemini",
     "looped-transformer",
-    "reasoning",
-    "inference-time-scaling",
     "extended-thinking",
     "benchmark",
-    "evaluation",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -33,15 +39,16 @@ classifiers = [
 dependencies = [
     "numpy>=1.26",
     "matplotlib>=3.7",
-    "torch>=2.4",
     "pydantic>=2.6",
     "click>=8.1",
     "tqdm>=4.66",
 ]
 
 [project.optional-dependencies]
-openmythos = ["open-mythos>=0.5"]
-huggingface = ["transformers>=4.40"]
+# torch is required for the openmythos and huggingface adapters; keeping it
+# out of base dependencies so API-only users don't pull ~2GB of CUDA libs.
+openmythos = ["open-mythos>=0.5", "torch>=2.4"]
+huggingface = ["transformers>=4.40", "torch>=2.4"]
 anthropic = ["anthropic>=0.40"]
 openai = ["openai>=1.40"]
 gemini = ["google-genai>=0.3"]
