@@ -51,10 +51,12 @@ SIZE_CONFIGS = {
     ),
 }
 
-# Training step counts scale with size to keep wall-clock roughly
-# proportional to expected gain. (1M converges fast; 100M needs more
-# steps but each step is slower.)
-STEPS_BY_SIZE = {"1M": 4000, "10M": 6000, "100M": 8000}
+# Training step counts scale with size so each model sees a comparable
+# *number of training sequences*: 8000 steps × batch 32 (100M) gave only
+# 256K sequences vs 1M (4000 × 256 = 1024K). 100M was severely under-
+# trained on the original budget; bumped to 24000 steps so 100M sees
+# 768K sequences (roughly parity with 1M and 10M).
+STEPS_BY_SIZE = {"1M": 4000, "10M": 6000, "100M": 24000}
 
 # Batch sizes that fit a 16 GB GPU at each scale.
 BATCH_BY_SIZE = {"1M": 256, "10M": 128, "100M": 32}
