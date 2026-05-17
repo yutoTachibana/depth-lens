@@ -1,105 +1,125 @@
 # depth-lens
 
-> **Stop paying for Opus when Haiku does the job — prove it with ~$0.50 of API calls.**
->
-> Production CI for LLM cost & quality. Sweep a reasoning model's thinking
-> knob on **your data** and get the cheapest configuration that meets your
-> accuracy bar. Cross-vendor (Anthropic / OpenAI / Gemini / OSS), with
-> Wilson 95% CIs and per-call cost.
+> **The production decision tool for inference compute.**
+> Three questions, one tool, real data on your workload.
 >
 > [日本語版](./README.ja.md)
 
 [![tests](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml/badge.svg)](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status: v1.0 alpha](https://img.shields.io/badge/status-v1.0%20alpha-green.svg)](#status)
+[![Status: v1.2 alpha](https://img.shields.io/badge/status-v1.2%20alpha-green.svg)](#status)
+
+Production teams running LLMs face the same three decisions, and the
+typical answer is *"use whatever everyone else uses"*. depth-lens lets
+you answer them with **a sweep on your data**, with Wilson 95% CIs and
+per-call cost, in a single session for the price of a sandwich.
+
+| You are asking… | depth-lens answers it by… | Evidence from our benches |
+|---|---|---|
+| **1. Which API tier / thinking budget should I be paying for?** | Sweep every (model, knob) on your prompts, rank passers by cost | Switching from Opus 4.7 to Haiku 4.5 saves **~$123k/year** on a 10k-call/day task — same accuracy ([finding](docs/findings/v1.0-cost-savings.md)) |
+| **2. Should I self-host an open model instead of paying the API?** | Put API and vLLM points on **one Pareto** ($/M-token vs $/GPU-hour, same axis) | At K-hop tier 4 (mod-97 K=14), `gemini-3.1-flash-lite` beats every self-hosted candidate on the 4080 SUPER. At tier 1, self-hosted Llama-3-8B AWQ is the **cheapest passing config in the entire study** at $0.028/1k calls ([finding](docs/findings/v1.2-self-hosted-vs-api.md)) |
+| **3. Is inference-time recursion (looped transformer) worth investing in for my workload?** | Probe token-CoT APIs and a looped transformer on the same task with the same accuracy axis | Within its training distribution, a **925K-param OpenMythos is ~10,000× faster than Claude at the same accuracy.** Outside it, the API dominates ([finding](docs/findings/v1.1-architecture-comparison.md)) |
+
+## The hero finding — production CI saves five figures per task per year
 
 ![Switching from Opus 4.7 to Haiku 4.5 saves $123k/year on a 10k-calls/day workload — same accuracy](docs/findings/figures/hero-cost-savings.png)
 
 **This plot is a real depth-lens output.** Four Anthropic configurations,
 all scoring 1.00 accuracy on K-hop tier 4, ranged across **~35× in cost**.
 That's the gap the *"use the latest / biggest"* instinct burns through
-silently. depth-lens finds the cheapest passing tier on **your** data in
-under 10 minutes — see the 30-second install below.
+silently.
 
 > Two other findings from the same bench:
 > [Claude Haiku 4.5 collapses on hard 2-SAT at default budget but recovers at 4× budget](docs/findings/v1.0-mini-csp-cross-vendor.md)
 > · [Gemini 2.5 Flash was uniquely weak in early 2025 vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced)
 
-depth-lens is the small OSS tool that finds facts like these:
+## Use case 1 — "Which API tier should we use?" (Production cost CI)
 
-- Sweep your model's compute knob (`thinking_budget` / `reasoning_effort` /
-  `thinking_level` / `n_loops`) across a depth-controllable task
-- Get accuracy curves with Wilson 95% CIs, $/prediction, latency
-- Auto-detect overthinking and effective-reasoning-depth ceilings
-- Compare across **6 adapter families** (Anthropic / OpenAI / Gemini /
-  vLLM / HuggingFace / OpenMythos) on **5 built-in tasks** or your own JSONL
+**You**: shipping a feature on Anthropic / OpenAI / Gemini. Each vendor
+has 3 tiers × a thinking knob = 9+ configurations. The instinct is
+*"use the latest / biggest"* — and you can be **20× overpaying** for
+accuracy you'd get from the cheap tier anyway.
 
-## Why this exists
+**What depth-lens gives you**:
 
-You're running an LLM in production. **How do you know you picked the right
-model?** Anthropic / OpenAI / Google each ship 3 tiers, each with a thinking
-knob (`thinking_budget`, `reasoning_effort`, `thinking_level`). That's
-9+ default configurations × N models. The instinct is *"use the latest /
-biggest"* — and you can be **20× overpaying** for accuracy you'd get
-from a cheap model anyway.
+- `depth-lens recommend` — single command that probes every (model, knob)
+  combination on **your JSONL of prompts** and ranks the passers by cost
+- Wilson 95% CIs on every cell so a 0.95 vs 0.93 comparison isn't a
+  coin flip
+- Per-call cost from the bundled pricing table + projected $/day, $/year
+  at your traffic volume
+- `--max-latency` to enforce a UX SLA (drop configs that pass accuracy
+  but blow the speed budget)
 
-The 5 standard questions production teams ask:
+**Backed by**: the [v1.0 cross-vendor summary](docs/findings/v1.0-cross-vendor-summary.md)
+(every current-gen + 2025-era reasoning model on all 5 tasks, ~$14
+total API spend). See [model-downgrade.md](docs/playbook/model-downgrade.md),
+[cost-audit.md](docs/playbook/cost-audit.md),
+[regression-detection.md](docs/playbook/regression-detection.md) for
+end-to-end production playbooks.
 
-1. *"Is Opus actually worth 20× the cost of Haiku for my workload?"*
-2. *"We're paying $5k/mo on reasoning APIs — where can we cut?"*
-3. *"Sonnet 4.7 just dropped — does it break the prompts we tuned for 4.6?"*
-4. *"At what `thinking_budget` does accuracy plateau on our task?"*
-5. *"My benchmarks say all models score 1.00 — am I missing a real difference?"*
+## Use case 2 — "Should we self-host an open model?" (Build vs buy)
 
-depth-lens answers all five **on your own data**, in a session, for the
-cost of a sandwich.
+**You**: paying $X/month for an API at high call volume. Considering
+running Llama / Qwen / DeepSeek on a single GPU instead. The question
+is never *"is self-hosting good enough?"* in the abstract — it's
+*"does the model whose ceiling sits above my task class win on $/call
+at my SLA?"*
 
-### What we don't do
+**What depth-lens gives you**:
 
-- We don't run [MMLU](https://github.com/openai/simple-evals) or
-  [GSM8K](https://github.com/openai/grade-school-math) — single numbers
-  designed to crown frontier models. *Production teams already picked a
-  model family; they need to tune within it.*
-- We're not [LLMThinkBench](https://github.com/ctrl-gaurav/LLMThinkBench)
-  (HF-only, math-only, single operating point).
-- We're not [lm-eval-harness](https://github.com/EleutherAI/lm-evaluation-harness)
-  (no compute axis).
+- `vllm:<model>` adapter that targets any OpenAI-compatible local server.
+  Two compute axes supported: `reasoning_effort` (thinking models like
+  DeepSeek-R1-Distill, Qwen-Thinking) or `max_tokens` (instruct-only
+  models like Llama-3-8B-Instruct).
+- **GPU-hour pricing schema** in `cost_per_cell` — when the spec is
+  `vllm:*` / `hf:*` / `openmythos`, cost per call is computed as
+  `latency_seconds × $/GPU-hour / 3600`. Now self-hosted and API
+  points land on the same cost axis on the same chart.
+- Docker compose recipes for Llama-3-8B-Instruct AWQ and
+  DeepSeek-R1-Distill-Qwen-1.5B that fit a 16 GB consumer GPU.
 
-We sit in the niche where none of the above covers: **the cost-vs-quality
-curve of frontier reasoning APIs on data you actually run in production**.
+**Backed by**: [v1.2 — APIs vs self-hosted vLLM, one Pareto](docs/findings/v1.2-self-hosted-vs-api.md).
+Headline: self-hosted models have an *opposite* accuracy ceiling pattern
+— Llama-3-8B AWQ wins at tier 1 (cheapest passing config in the entire
+study) and is **0% accurate** at tier 4. DeepSeek-R1-Distill-1.5B
+(1.5B params!) is the opposite. Pick by ceiling, not by parameter count.
 
-## …and also: a meter for inference-time-compute scaling across paradigms
+![APIs vs self-hosted vLLM, one Pareto](docs/findings/figures/4way-pareto.png)
 
-The other audience for depth-lens — and the project's original motivation —
-is **researchers and architecture explorers**. A core open question in
-2026 is:
+See also: [self-hosting-with-vllm.md playbook](docs/playbook/self-hosting-with-vllm.md).
 
-> **Can inference-time compute substitute for parameter count?**
+## Use case 3 — "Does inference-time recursion scale?" (Architecture research)
 
-Two paradigms have emerged to answer "yes":
+**You**: a researcher or applied-ML engineer comparing inference-compute
+paradigms. The 2026 open question is whether **latent-space recursion**
+(looped transformers — OpenMythos, Parcae, Recurrent-Depth) can substitute
+for **token-level CoT** (extended thinking APIs) at production scale.
+Marketing claims from both sides; no one has measured them on the same
+chart.
 
-| Paradigm | Implementation | How compute is spent |
+**What depth-lens gives you**:
+
+| Paradigm | Implementation in depth-lens | Compute axis |
 |---|---|---|
-| **Token-level chain-of-thought** | Anthropic `thinking_budget`, OpenAI `reasoning_effort`, Gemini `thinking_level` | Generate intermediate tokens before answering |
-| **Latent-space recursion** | [OpenMythos](https://github.com/kyegomez/OpenMythos), Parcae, Recurrent-Depth Transformers | Apply the same weights T times in latent space, no tokens emitted |
+| Token-level CoT | `anthropic:*`, `openai:*`, `gemini:*`, `vllm:` thinking | `thinking_budget`, `reasoning_effort`, `thinking_level` |
+| Latent-space recursion | `openmythos` (bundled) — trains a tiny model in 7 min if you don't have one | `n_loops` |
 
-**depth-lens is the only OSS tool that probes both on the same task with
-the same accuracy axis.** Bring an OpenMythos checkpoint AND an
-extended-thinking API; sweep their respective compute knobs; see
-which architecture pays the better latency / cost / accuracy
-trade on your workload. The bundled `openmythos` adapter even
-trains a small model for you if you don't have a checkpoint.
+Same `probe()`, same accuracy axis, same Wilson CIs. **This is the only
+OSS tool that compares both paradigms with the same instrument.**
 
-This unlocks comparisons no other tool surfaces:
+**Backed by**: [v1.1 — Architecture head-to-head: latent recursion vs token-level CoT](docs/findings/v1.1-architecture-comparison.md).
+Within OpenMythos's training distribution, a **925K-parameter looped
+model is ~10,000× faster than Claude at the same accuracy**. Outside
+the training distribution, the API dominates. The looped-transformer
+thesis is supported — *bounded by training depth*. depth-lens makes
+that boundary measurable on your data, not a marketing-deck assertion.
 
-- *"Does looping a 925K-param model 8 times beat a 1.5B HF model with CoT?"*
-- *"For my task, is the looped-transformer thesis paying off, or does
-  paying Anthropic for thinking dominate?"*
-- *"At what task-depth does latent recursion overtake token-level CoT?"*
-
-For a concrete worked example, see
-[OpenMythos vs Claude Haiku head-to-head on K-hop](docs/findings/v1.1-architecture-comparison.md).
+See also: [v1.1 OpenMythos saturation finding](docs/findings/v1.1-cost-vs-latency-per-vendor.md#openmythos-looping-pays-latency-but-the-more-loops--more-depth)
+— the "infinite loops at inference" claim **doesn't replicate** past
+the training `max_loop_iters`. depth-lens caught it; the architecture's
+README had predicted it; we now have evidence.
 
 ## 30-second install + recommend the cheapest model
 
@@ -153,37 +173,54 @@ That's it. You now have a defensible answer to *"is Opus actually
 worth 4× the cost of Haiku for my workload?"* — backed by a real sweep
 with Wilson 95% CIs.
 
-> **The above is real depth-lens output**, on a small bench (tier-1 K-hop).
-> Same machinery on a harder task — see
-> [docs/findings/v1.0-cost-savings.md](docs/findings/v1.0-cost-savings.md)
-> — projects up to **$123k/year savings** for typical production workloads
-> at 10k calls/day.
+To add a self-hosted candidate to the same comparison:
 
-💡 **What you're looking at**: depth-lens just ran every (model, budget)
-combination on your data, scored them against your target, ranked the
-passers by per-prediction cost, and projected the yearly savings vs the
-most-expensive passing config. That's the production-CI workflow this
-tool was built for.
+```bash
+docker compose -f docker/vllm-llama3-8b.yml up -d   # serve Llama-3-8B-Instruct AWQ
 
-## Real findings the tool has produced
+depth-lens recommend \
+    --models anthropic:claude-haiku-4-5,vllm:hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4 \
+    --task custom:my_eval.jsonl:first_int \
+    --target-accuracy 0.95 \
+    --gpu-hourly-rate 0.50 \
+    --n-samples 32 --daily-calls 10000
+```
 
-We ran depth-lens on every vendor we could get an API key for, on all 5
-bundled tasks — current generation **and** one generation back to keep
-the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
-**a single session**.
+`--gpu-hourly-rate` makes the self-hosted point comparable; the default
+is $0.50/GPU-hour (AWS g5 spot midpoint).
+
+## All findings the tool has produced
+
+We ran depth-lens on every vendor we could get an API key for, on all
+5 bundled tasks — current generation **and** one generation back to
+keep the cross-vendor comparison fair. Then we added self-hosted vLLM
+and a looped transformer to the same Pareto. **Total spend: ~$14 API
++ ~30 min local GPU.**
+
+### For use case 1 — API ops
 
 | Finding | Why it matters |
 |---|---|
 | [Switching from Opus 4.7 to Haiku 4.5 saves ~$123k/year on a 10k-call/day task](docs/findings/v1.0-cost-savings.md) | The 4 concrete "tier-downgrade" savings switches depth-lens surfaces, in $ |
 | [Cost vs latency: OpenAI gpt-5-mini cheaper-per-token but 3× slower than o4-mini at same accuracy](docs/findings/v1.0-cost-savings.md#cost-is-one-axis--latency-is-another) | Picking by $/token alone burns user-facing UX latency; the Pareto frontier on K-hop tier 4 has only 2 points |
-| [Per-vendor cost-vs-latency plots (Anthropic / OpenAI / Gemini) + OpenMythos loops-vs-accuracy](docs/findings/v1.1-cost-vs-latency-per-vendor.md) | The looped-transformer "more loops = deeper reasoning" claim **saturates** at training_max_loop_iters; latency keeps growing, accuracy doesn't. depth-lens caught this. |
-| [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | Within training distribution, a 925K-param looped model is **~10,000× faster than Claude at same accuracy**. Outside it, the API dominates. The cross-paradigm trade depth-lens is built to surface. |
-| [**Self-hosted vLLM (Llama-3-8B / DeepSeek-R1-Distill) vs hosted APIs — one Pareto**](docs/findings/v1.2-self-hosted-vs-api.md) | Llama-3-8B AWQ self-hosted is the **cheapest passing config in the entire study at tier 1** ($0.028/1k calls), but **0% accuracy at tier 4**. DeepSeek-R1-Distill-1.5B hits 0.75 on tier 4. gemini-3.1-flash-lite dominates everything at tier 4 ($0.11/1k calls, 1.00 acc). depth-lens makes build-vs-buy a chart, not a guess. |
 | [Haiku 4.5 collapses on hard 2-SAT at default budget](docs/findings/v1.0-mini-csp-cross-vendor.md) | If you use Haiku for constraint-style problems, set `budget≥4096` or pay 2× error rate |
-| [Gemini 2.5 Flash was uniquely weak vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced) | When we tested 2025-era models from all 3 vendors, Anthropic Sonnet 4 (May 2025) and o3-mini (Jan 2025) were already at ceiling on K-hop. Only Gemini Flash collapsed. 3.1 Flash-Lite closes the gap. |
+| [Gemini 2.5 Flash was uniquely weak vs same-era Anthropic / OpenAI cheap reasoning](docs/findings/v1.0-cross-vendor-summary.md#five-structural-findings-depth-lens-surfaced) | When we tested 2025-era models, Anthropic Sonnet 4 (May 2025) and o3-mini (Jan 2025) were at ceiling on K-hop. Only Gemini Flash collapsed. 3.1 Flash-Lite closes the gap |
 | [Claude Opus 4.7 cost varies 10× across (depth × budget) at fixed accuracy](docs/findings/v1.0-anthropic-cross-vendor.md) | Maxing the budget is a strict cost loss for many task classes |
-| [OpenAI gpt-5-mini is cheaper-per-token but 3× slower than o4-mini](docs/findings/v1.0-openai-cross-vendor.md) | Latency-sensitive paths should pick o4-mini |
-| [OpenMythos (looped transformer) extrapolates 1-2 hops past training depth](docs/findings/v0.5-openmythos.md) | Architecture-specific finding from the experiment that motivated the project |
+| [Per-vendor cost-vs-latency plots (Anthropic / OpenAI / Gemini)](docs/findings/v1.1-cost-vs-latency-per-vendor.md) | One scatter per vendor — Pareto frontier vs. budget knobs |
+
+### For use case 2 — Build vs buy
+
+| Finding | Why it matters |
+|---|---|
+| [**Self-hosted vLLM (Llama-3-8B / DeepSeek-R1-Distill) vs hosted APIs — one Pareto**](docs/findings/v1.2-self-hosted-vs-api.md) | Llama-3-8B AWQ self-hosted is the **cheapest passing config in the entire study at tier 1** ($0.028/1k calls), but **0% accuracy at tier 4**. DeepSeek-R1-Distill-1.5B hits 0.75 on tier 4. gemini-3.1-flash-lite dominates everything at tier 4 ($0.11/1k calls, 1.00 acc). depth-lens makes build-vs-buy a chart, not a guess |
+
+### For use case 3 — Architecture / paradigm research
+
+| Finding | Why it matters |
+|---|---|
+| [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | Within training distribution, a 925K-param looped model is **~10,000× faster than Claude at same accuracy**. Outside it, the API dominates |
+| [OpenMythos loops-vs-accuracy saturation](docs/findings/v1.1-cost-vs-latency-per-vendor.md#openmythos-looping-pays-latency-but-the-more-loops--more-depth) | The looped-transformer "more loops = deeper reasoning" claim **saturates** at `training_max_loop_iters`; latency keeps growing, accuracy doesn't |
+| [OpenMythos extrapolates 1-2 hops past training depth on K-hop](docs/findings/v0.5-openmythos.md) | The seed experiment that motivated the project — same data, same axes |
 
 **[→ See the full v1.0 cross-vendor summary](docs/findings/v1.0-cross-vendor-summary.md)**
 
@@ -197,8 +234,8 @@ the cross-vendor comparison fair. Total spend: **~$14**. Time invested:
 | `openai:<model>` | `reasoning_effort` | API |
 | `gemini:<model>` | `thinking_budget_tokens` (2.5) / auto-mapped to `thinking_level` (3.x) | API |
 | `vllm:<model>` | `reasoning_effort` for thinking models or `max_tokens` for instruct-only (OpenAI-compatible local server) | self-hosted ($/GPU-hour) |
-| `hf:<hf-model-id>` | `max_thinking_tokens` (CoT length) | local GPU |
-| `openmythos` | `n_loops` (Recurrent-Depth Transformer) | local GPU |
+| `hf:<hf-model-id>` | `max_thinking_tokens` (CoT length) | local GPU ($/GPU-hour) |
+| `openmythos` | `n_loops` (Recurrent-Depth Transformer) | local GPU ($/GPU-hour) |
 
 API adapters fan requests through a thread pool (`max_concurrent`); a
 1000-prompt probe finishes in minutes, not hours.
@@ -226,7 +263,9 @@ Every `ProbeResult` exposes:
 - `.ci()` — Wilson 95% intervals on every cell
 - `.effective_depth(threshold=0.5)` — biggest depth where some compute level clears the bar
 - `.overthinking(depth, tolerance=0.02)` — peak compute is not max compute, by how much
-- `.cost_per_cell(pricing)` — $/prediction given a `{input, output, thinking}` USD-per-1M dict
+- `.cost_per_cell(pricing)` — $/prediction. Accepts both token-based pricing
+  (`{input, output}` USD-per-1M) and GPU-hour pricing
+  (`{gpu_hourly, gpus}`) — pick whichever fits the adapter
 
 ## CLI
 
@@ -256,13 +295,22 @@ print(f"overthinking @ d=9: {result.overthinking(9)}")
 print(f"$/pred @ d=9 mid budget: {result.cost_per_cell({'input': 1.0, 'output': 5.0})[3, 1]}")
 ```
 
-## How it compares to existing tools
+## What this is not — and how it compares
+
+depth-lens is intentionally narrow. It does **not** run
+[MMLU](https://github.com/openai/simple-evals) or
+[GSM8K](https://github.com/openai/grade-school-math) — single numbers
+designed to crown frontier models. It does not test "is the model
+smart" (production teams already picked a model family). It tests
+**which configuration of that family meets your accuracy bar at the
+lowest cost / latency / GPU-time**.
 
 | | LLMThinkBench | usail-hkust bench | o1 scaling laws | **depth-lens** |
 |---|---|---|---|---|
 | Compute-axis curves (not single point) | ❌ | partial | ✅ (o1 only) | **✅** |
 | Cross-vendor (Claude / o-series / Gemini / OSS) | ❌ HF only | partial | ❌ o1 only | **✅** |
 | Looped transformer (OpenMythos) | ❌ | ❌ | ❌ | **✅** |
+| Self-hosted vLLM on same axis as APIs | ❌ | ❌ | ❌ | **✅** |
 | Bring-your-own JSONL | ❌ | ❌ | ❌ | **✅** |
 | Cost per prediction with sweep | ❌ | ❌ | ❌ | **✅** |
 | Bounded-depth synthetic probes | ❌ | partial | ❌ | **✅** |
@@ -279,9 +327,11 @@ vendor APIs.
 - [x] **v1.0** — 6 adapter families, 5 tasks, full cross-vendor benchmark
   (Anthropic/OpenAI/Gemini, current + 2025 prior gen), multi-stage Docker,
   contributor docs, JA translation, GitHub Actions CI (lint + tests)
+- [x] **v1.1** — OpenMythos head-to-head; cross-paradigm Pareto
+- [x] **v1.2** — self-hosted vLLM with GPU-hour pricing on the same Pareto
 - [ ] **v1.0 release** — PyPI publish (you can already `pip install -e .` from source)
 
-73 unit tests passing. See [ROADMAP.md](./ROADMAP.md) for what's next.
+92 unit tests passing. See [ROADMAP.md](./ROADMAP.md) for what's next.
 
 ## Install variants
 
@@ -292,12 +342,15 @@ pip install -e .[anthropic,openai,gemini,dashboard]
 # +looped transformer + HuggingFace local probes
 pip install -e .[openmythos,huggingface,anthropic,openai,gemini,dashboard]
 
+# +self-hosted vLLM (assumes vLLM is running separately via docker compose)
+pip install -e .[anthropic,openai,gemini,dashboard]   # OpenAI SDK is all that's needed client-side
+
 # Just the framework (BYO adapters)
 pip install -e .
 ```
 
-Python 3.11+. The bundled OpenMythos training helper assumes CUDA; everything
-else is happy on CPU or against remote APIs.
+Python 3.11+. The bundled OpenMythos training helper assumes CUDA;
+everything else is happy on CPU or against remote APIs.
 
 ## Contributing
 
