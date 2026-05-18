@@ -333,6 +333,22 @@ API アダプタは thread pool でリクエストを並列化 (`max_concurrent`
 `yes_no`, `contains`, `regex:<pattern>`。冗長な CoT 出力からは
 `Final answer: …` 行を自動抽出。
 
+**`llm:<judge-model>:<criterion>` ── LLM-as-judge scorer** で
+exact match では測れない open-ended task (要約 / 自由記述 / 多基準) を
+判定。Built-in criteria: `correct` / `faithful` / `helpful` /
+`concise` / `format` / `polite`。自由 rubric は
+`llm:<judge-model>:rubric:<text>`。例:
+
+```bash
+depth-lens recommend \
+    --models openai:gpt-5-mini,openai:o4-mini \
+    --task "custom:./summaries.jsonl:llm:openai:gpt-5-mini:faithful" \
+    --target-accuracy 0.85 --n-samples 32
+```
+
+判定対象モデルと judge model は **必ず別** にする (self-judging bias 回避)。
+Judge cost も実費。2026 年時点で gemini-3.1-flash-lite が最安の competent judge。
+
 ### 診断
 
 各 `ProbeResult` が露出するもの:

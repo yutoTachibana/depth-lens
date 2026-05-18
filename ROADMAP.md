@@ -191,7 +191,24 @@ No arXiv unless community response signals it merits one.
 **Honest bottleneck**: 100M × 5 tasks = ~15 GPU-hours. Wall-clock
 gap between sessions is structural, not laziness.
 
-### v2.1+ — backlog (after v2.0 ships and we see community signal)
+### v2.1 — LLM-as-judge scorer (in progress, 2026-05-18)
+
+- [x] `llm:<judge-model>:<criterion>` scorer — open-ended task scoring
+  via separate judge LLM, with 6 built-in criteria (correct/faithful/
+  helpful/concise/format/polite) plus free-form rubric form
+- [x] 19 new tests (parser, builtin criteria, rubric form with internal
+  colons, score parsing, custom-task integration, regression tests for
+  the existing path:scorer parser)
+- [x] Smoke-tested on a summary task (o4-mini judged by gpt-5-mini for
+  faithfulness; verified that semantically equivalent reword scores 1
+  and unrelated text scores 0)
+- [ ] Cost accounting: judge usage should be folded into recommend's
+  $/k-pred output. Currently judge cost is real but not surfaced in
+  the cost projection — track separately for now.
+- [ ] Sample case study with an open-ended task that v1.0-v1.2 couldn't
+  measure (forthcoming, e.g., customer-support reply quality).
+
+### v2.2+ — backlog (after v2.1 ships and we see community signal)
 
 - [ ] PyPI publish (`pip install depth-lens` from anywhere) — pull
       forward if HN/X traffic warrants it

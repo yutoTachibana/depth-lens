@@ -346,6 +346,23 @@ Built-in scorers for `custom:`: `exact`, `first_int`, `last_int`, `yes_no`,
 `contains`, `regex:<pattern>`. Verbose CoT outputs are parsed for
 `Final answer: …` lines automatically.
 
+**`llm:<judge-model>:<criterion>` — LLM-as-judge scorer** for open-ended
+tasks (summaries, free-form Q&A, multi-criterion checks) where exact
+match doesn't apply. Built-in criteria: `correct` / `faithful` /
+`helpful` / `concise` / `format` / `polite`. Free-form rubrics via
+`llm:<judge-model>:rubric:<text>`. Example:
+
+```bash
+depth-lens recommend \
+    --models openai:gpt-5-mini,openai:o4-mini \
+    --task "custom:./summaries.jsonl:llm:openai:gpt-5-mini:faithful" \
+    --target-accuracy 0.85 --n-samples 32
+```
+
+Always pick a different (and ideally cheaper) judge model than the
+model under test, to avoid self-judging bias. Judge cost is real —
+gemini-3.1-flash-lite is the cheapest competent judge as of 2026.
+
 ### Diagnostics
 
 Every `ProbeResult` exposes:

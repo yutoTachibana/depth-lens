@@ -23,6 +23,12 @@ Scorer is pluggable:
     "yes_no"     — first yes/no token; compare to lowercased target
     "contains"   — target appears anywhere in prediction (case-insensitive)
     "regex:<p>"  — pattern <p> matches prediction
+    "llm:<judge-model>:<criterion>"
+                 — call a separate LLM to grade against a built-in
+                   criterion (correct/faithful/helpful/concise/format/polite).
+                   For free-form rubrics use
+                   "llm:<judge-model>:rubric:<rubric-text>".
+                   See depth_lens/scorers/llm_judge.py for details.
 """
 
 from __future__ import annotations
@@ -51,6 +57,14 @@ class CustomTask(Task):
             raise FileNotFoundError(f"JSONL not found: {self.path}")
         self.name = name or f"custom:{self.path.stem}"
         self._scorer = scorer
+
+        # LLM-as-judge scorers (`llm:<judge-model>:<criterion>`) build their
+        # judge adapter lazily on first score(); failed parse-time validation
+        # happens here so a typo doesn't waste an API spend before erroring.
+        self._llm_judge = None
+        if scorer.startswith("llm:"):
+            from depth_lens.scorers import LLMJudgeScorer
+            self._llm_judge = LLMJudgeScorer.from_string(scorer)
 
         rows: list[dict] = []
         for i, line in enumerate(self.path.read_text(encoding="utf-8").splitlines()):
@@ -100,7 +114,24 @@ class CustomTask(Task):
         ]
 
     def score(self, instance: ProbeInstance, prediction: str) -> float:
+        if self._llm_judge is not None:
+            return self._llm_judge.score_one(
+                prompt=instance.prompt,
+                target=instance.target,
+                prediction=prediction,
+            )
         return _SCORERS_DISPATCH(self._scorer, instance.target, prediction)
+
+    @property
+    def llm_judge_log(self) -> list[dict] | None:
+        """Returns per-judgment log when an LLM-as-judge scorer is in use.
+
+        Each entry has keys: prompt, target, prediction, judge_raw, score,
+        parse_status. Useful for post-hoc auditing of borderline rulings
+        and for surfacing the rare 'judge could not parse' cases."""
+        if self._llm_judge is None:
+            return None
+        return self._llm_judge.log
 
 
 # ---------------------------------------------------------------------------

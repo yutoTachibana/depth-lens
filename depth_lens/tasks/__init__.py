@@ -23,19 +23,24 @@ def get_task(name: str) -> Task:
     """
     if name.startswith("custom:"):
         spec = name[len("custom:"):]
-        # Allow "path:scorer" form.
-        if ":" in spec and not spec.startswith((".", "/")) and "\\" not in spec:
-            path, scorer = spec.rsplit(":", 1)
-        elif ":" in spec.replace(":\\", "", 1).replace(":/", "", 1):
-            # path contains a Windows drive letter or POSIX absolute prefix —
-            # the trailing ":<scorer>" is the only remaining colon segment.
-            head, _, tail = spec.rpartition(":")
-            if tail in {"exact", "first_int", "last_int", "yes_no", "contains"} or tail.startswith("regex"):
-                path, scorer = head, tail
-            else:
-                path, scorer = spec, "exact"
+        # The scorer suffix may itself contain colons (`llm:openai:gpt-5-mini:faithful`,
+        # `regex:foo:bar`). To split path from scorer we look for a scorer-prefix
+        # keyword and split there, instead of blindly rsplit'ing on the last colon.
+        SCORER_PREFIXES = ("llm:", "regex:")
+        SCORER_SIMPLE = {"exact", "first_int", "last_int", "yes_no", "contains"}
+        path, scorer = spec, "exact"
+        for prefix in SCORER_PREFIXES:
+            marker = f":{prefix}"
+            if marker in spec:
+                idx = spec.index(marker)
+                path = spec[:idx]
+                scorer = spec[idx + 1:]
+                break
         else:
-            path, scorer = spec, "exact"
+            # No prefixed scorer — look for `:<simple-name>` at the end.
+            head, sep, tail = spec.rpartition(":")
+            if sep and tail in SCORER_SIMPLE:
+                path, scorer = head, tail
         return CustomTask(path=path, scorer=scorer)
 
     registry: dict[str, type[Task]] = {
