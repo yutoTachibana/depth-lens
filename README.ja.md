@@ -295,7 +295,7 @@ looped transformer も同じ Pareto に追加。**合計コスト: API ~$14 + �
 
 | 発見 | 意味 |
 |---|---|
-| [**v2.0 ── 推論時計算量 × 3 paradigm scaling law**](docs/findings/v2.0-scaling-law.md) | Token-CoT API · Self-hosted vLLM · Looped (OpenMythos 1M/10M/100M) を **同じ FLOPs 軸** で 5 タスク横断比較。**4/5 tasks で 1M-param looped が gpt-5-mini より 24,000-410,000× FLOPs 効率良い**。例外は探索系 (mini-CSP) で API が勝つ。3 paradigm を 1 つの軸に乗せる唯一の OSS 比較 |
+| [**v2.0 ── 推論時計算量 × 3 paradigm scaling law**](docs/findings/v2.0-scaling-law.md) | Token-CoT API · Self-hosted vLLM · Looped (OpenMythos 1M/10M/100M) を **同じ FLOPs 軸** で 5 タスク横断比較。**研究 finding**: 1M-param looped が bounded-depth synthetic 4/5 tasks で gpt-5-mini より 24,000-410,000× FLOPs 効率 ── ただし **production 推薦ではない**。この比は (1) 入力分布が bounded、(2) タスク毎に custom model 訓練可能、(3) call 量で engineering cost が amortize される ── の **3 条件を全て満たす場合のみ**。一般的な chatbot/RAG/agent には v1.0-v1.2 finding 通り「廉価 API tier 使う」が正解。詳細は [finding doc の「When this applies」セクション](docs/findings/v2.0-scaling-law.md#when-this-finding-applies--and-when-it-doesnt) を参照 |
 | [**OpenMythos (latent recursion) vs Claude (token CoT) head-to-head**](docs/findings/v1.1-architecture-comparison.md) | 訓練 distribution 内では 925K パラメータの looped model が **同精度 Claude より ~10,000× 速い**。外では API が圧倒 |
 | [OpenMythos loops-vs-accuracy 飽和](docs/findings/v1.1-cost-vs-latency-per-vendor.md#openmythos-looping-pays-latency-but-the-more-loops--more-depth) | looped transformer の「ループ増やせば深い推論」主張は `training_max_loop_iters` で **飽和**。latency は線形に増えるが精度は伸びない |
 | [OpenMythos は K-hop で訓練深度 +1〜2 hops まで外挿](docs/findings/v0.5-openmythos.md) | プロジェクト発端となった seed 実験。同じデータ、同じ軸で |
