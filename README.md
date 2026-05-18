@@ -266,10 +266,38 @@ messy input (typos, formal/casual mixed, implicit tier hints like
   `gpt-5-mini @ low` handles compound discount logic, mixed plans, AND
   colloquial Japanese ("がっつり監視で") at 100%.
 
-### Common pattern across both cases
+### Case 3 — Tenant-reply quality, judged by LLM (v2.1)
+
+The third leg of the property-management chatbot: instead of classifying
+inquiries or computing quotes, the bot **generates a free-form reply**
+to a tenant. Quality is judged by a separate LLM against a 3-criterion
+rubric (polite using 敬語, addresses the specific issue, proposes a
+concrete next step). 12 prompts spanning urgent / procedural /
+rules / complaints / repairs.
+
+| Config | All 3 criteria met | Per-reply latency |
+|---|---:|---:|
+| **`openai:gpt-5-mini @ effort=low`** ← chosen | **100% (12/12)** | **1.4 s** |
+| `openai:o4-mini @ effort=high` | 100% (12/12) | 1.8 s |
+| `openai:gpt-5-mini @ effort=high` (default "safe") | 75% (9/12) | **15.6 s** ← unusable |
+
+- **Counter-intuitive**: `gpt-5-mini` accuracy *decreases* with higher
+  effort (low 100% → high 75%) — likely because over-elaborated replies
+  fail the rubric's "addresses the specific issue / concrete next step"
+  criteria. `o4-mini` shows the *opposite* curve. **Optimal effort is
+  per-(model, task), not universal.**
+- **The new v2.1 `llm:` scorer is what makes this measurable** — none
+  of the previous structured scorers (`exact`, `first_int`, etc.) can
+  judge an open-ended Japanese reply against a 3-criterion rubric.
+
+[Full case study →](docs/findings/v2.1-llm-judge-case-study.md)
+
+### Common pattern across all three cases
 
 1. **"Use the bigger model to be safe" is a strict loss** when measured
-   — same accuracy, more cost, no latency budget gained.
+   — same accuracy, more cost, no latency budget gained. Case 3 sharpens
+   this: higher effort can *decrease* accuracy on free-form tasks where
+   over-elaboration hurts the rubric.
 2. **Stratified bench (simple → production-messy) reveals where each
    tier breaks** — or, as in Case 2, that none of the candidates do.
 3. **~80-90% cost reduction is typical** when teams stop pre-judging
@@ -278,6 +306,12 @@ messy input (typos, formal/casual mixed, implicit tier hints like
    Synthetic tier-1 prompts alone systematically over-recommend expensive
    models — Case 2's 30 messy "real-log-style" prompts were what
    produced the conclusion's confidence interval.
+5. **The right scorer matters more than the model choice.** The three
+   cases between them cover the three scorer families depth-lens ships
+   — structured classification (`exact`), numeric extraction
+   (`first_int`), and open-ended LLM-judge (`llm:`). New production
+   tasks land in one of these buckets; the existing infrastructure
+   measures them directly.
 
 ## All findings the tool has produced
 
