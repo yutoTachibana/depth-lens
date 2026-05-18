@@ -82,6 +82,7 @@ class OpenAIAdapter(ModelAdapter):
         request_delay: float = 0.0,
         max_concurrent: int = 8,
         adapter_label: str | None = None,
+        free_form: bool = False,
     ):
         try:
             import openai
@@ -108,7 +109,19 @@ class OpenAIAdapter(ModelAdapter):
         self._model = model
         self.name = adapter_label or f"openai:{model}"
 
-        if task_name and task_name in _TASK_INSTRUCTIONS:
+        self._free_form = free_form
+        if free_form:
+            # Free-form generation mode: the model should answer the user's
+            # prompt directly without any "Final answer:" structural marker.
+            # The downstream scorer (typically LLM-as-judge) will read the
+            # full reply, so post-hoc extraction must be disabled too — see
+            # the `_extract_final_answer` skip in `_one_call`.
+            self._instructions = (
+                "Respond directly to the user's request. Do NOT include any "
+                "'Final answer:' label, meta-commentary, or preamble — output "
+                "only the answer itself."
+            )
+        elif task_name and task_name in _TASK_INSTRUCTIONS:
             self._instructions = _TASK_INSTRUCTIONS[task_name]
         else:
             self._instructions = (
@@ -160,8 +173,16 @@ class OpenAIAdapter(ModelAdapter):
                     reasoning_effort=effort,
                 )
                 text = resp.choices[0].message.content or ""
-                final = _extract_final_answer(text)
-                return final or text, {
+                # In free-form mode, the system prompt explicitly tells the
+                # model NOT to write "Final answer: ..." — so skip extraction
+                # and return the full reply for the downstream scorer (which
+                # is typically LLM-as-judge or a regex matching the full text).
+                if self._free_form:
+                    result = text
+                else:
+                    final = _extract_final_answer(text)
+                    result = final or text
+                return result, {
                     "reasoning_effort": effort,
                     "model": self._model,
                     "raw_text": text,

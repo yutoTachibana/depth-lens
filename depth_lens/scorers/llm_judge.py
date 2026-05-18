@@ -209,8 +209,6 @@ class LLMJudgeScorer:
 
     def score_one(self, prompt: str, target: str, prediction: str) -> float:
         """Score a single (prompt, target, prediction) triple. Returns 0.0 or 1.0."""
-        from depth_lens.adapters.base import ComputeLevel
-
         adapter = self._build_adapter()
         judge_prompt = _JUDGE_PROMPT_TEMPLATE.format(
             prompt=prompt,
@@ -224,7 +222,8 @@ class LLMJudgeScorer:
         # thinking budget. The adapter's default grid's first entry works.
         compute = adapter.default_compute_grid()[0]
         preds = adapter.predict([judge_prompt], compute)
-        raw = preds[0].text if preds else ""
+        pred = preds[0] if preds else None
+        raw = pred.text if pred else ""
 
         # Parse the final "Score: 0|1" line.
         matches = _SCORE_RE.findall(raw)
@@ -236,6 +235,17 @@ class LLMJudgeScorer:
             score = float(int(matches[-1]))
             parse_status = "ok"
 
+        # Capture per-call usage so the downstream recommend / probe layer
+        # can compute total judge cost. The adapter writes usage into
+        # `Prediction.metadata["usage"]` as a dict like
+        # `{"input_tokens": int, "output_tokens": int, ...}` (token-based
+        # billing) — see `metrics._extract_token_usage` for the canonical
+        # shape. For non-API judges the dict may be missing or partial;
+        # we store whatever is there and let the cost projector handle it.
+        from depth_lens.metrics import _extract_token_usage
+
+        usage_norm = _extract_token_usage(pred.metadata if pred else {})
+
         self._log.append({
             "prompt": prompt,
             "target": target,
@@ -243,13 +253,29 @@ class LLMJudgeScorer:
             "judge_raw": raw,
             "score": score,
             "parse_status": parse_status,
+            "usage": usage_norm,
         })
 
         if os.environ.get("JUDGE_DEBUG_LOG"):
             print(f"  [judge] criterion={self.spec.criterion_key or 'rubric'} "
-                  f"score={score} parse={parse_status}", flush=True)
+                  f"score={score} parse={parse_status} "
+                  f"in={usage_norm.get('input', 0)} out={usage_norm.get('output', 0)}",
+                  flush=True)
 
         return score
+
+    def total_usage(self) -> dict[str, int]:
+        """Sum of token usage across all judge calls so far. Keys: input,
+        output, thinking (may be partial when the judge adapter doesn't
+        report all three). Useful for projecting total judge cost."""
+        total = {"input": 0, "output": 0, "thinking": 0}
+        for entry in self._log:
+            for k, v in (entry.get("usage") or {}).items():
+                total[k] = total.get(k, 0) + int(v)
+        return total
+
+    def call_count(self) -> int:
+        return len(self._log)
 
     @property
     def log(self) -> list[dict]:

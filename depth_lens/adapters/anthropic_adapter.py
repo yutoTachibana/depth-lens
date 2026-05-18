@@ -76,6 +76,7 @@ class AnthropicAdapter(ModelAdapter):
         request_delay: float = 0.0,
         max_concurrent: int = 8,
         adapter_label: str | None = None,
+        free_form: bool = False,
     ):
         try:
             import anthropic
@@ -99,7 +100,14 @@ class AnthropicAdapter(ModelAdapter):
         self.name = adapter_label or f"anthropic:{model}"
 
         # Pick instruction template.
-        if task_name and task_name in _TASK_INSTRUCTIONS:
+        self._free_form = free_form
+        if free_form:
+            self._instructions = (
+                "Respond directly to the user's request. Do NOT include any "
+                "'Final answer:' label, meta-commentary, or preamble — output "
+                "only the answer itself."
+            )
+        elif task_name and task_name in _TASK_INSTRUCTIONS:
             self._instructions = _TASK_INSTRUCTIONS[task_name]
         else:
             self._instructions = (
@@ -168,7 +176,10 @@ class AnthropicAdapter(ModelAdapter):
                     for b in resp.content
                     if getattr(b, "type", "") == "thinking"
                 )
-                final = _extract_final_answer(text_block)
+                if self._free_form:
+                    final = None  # skip extraction; full reply is the answer
+                else:
+                    final = _extract_final_answer(text_block)
                 meta = {
                     "thinking_budget_tokens": budget,
                     "model": self._model,

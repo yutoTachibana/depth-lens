@@ -46,7 +46,11 @@ def plot_accuracy_curve(
         if ci is not None:
             ax.fill_between(xs, ci[i, :, 0], ci[i, :, 1], color=cmap[i], alpha=0.15)
 
-    if log_x:
+    # Use log-scale only when every compute value is positive — otherwise
+    # we get matplotlib's "Data has no positive values" UserWarning + crash.
+    # Categorical efforts (low/medium/high) and rank-indexed grids violate
+    # this, so we fall back to a linear scale.
+    if log_x and all(x is not None and x > 0 for x in xs):
         ax.set_xscale("log", base=2)
     ax.set_xticks(xs, xlabels, rotation=0)
     ax.set_xlabel(f"compute ({result.compute_axis})")

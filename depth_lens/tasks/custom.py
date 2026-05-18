@@ -127,11 +127,40 @@ class CustomTask(Task):
         """Returns per-judgment log when an LLM-as-judge scorer is in use.
 
         Each entry has keys: prompt, target, prediction, judge_raw, score,
-        parse_status. Useful for post-hoc auditing of borderline rulings
-        and for surfacing the rare 'judge could not parse' cases."""
+        parse_status, usage. Useful for post-hoc auditing of borderline
+        rulings and for surfacing the rare 'judge could not parse' cases."""
         if self._llm_judge is None:
             return None
         return self._llm_judge.log
+
+    def llm_judge_summary(self) -> dict | None:
+        """Aggregate stats for the LLM-judge scorer (None if not in use).
+
+        Returns:
+            {
+                "judge_model_spec": <vendor:model>,
+                "criterion": <criterion-key or 'rubric:...'>,
+                "call_count": int,
+                "total_usage": {"input": int, "output": int, "thinking": int},
+                "parse_failure_count": int,
+            }
+        """
+        if self._llm_judge is None:
+            return None
+        log = self._llm_judge.log
+        crit = self._llm_judge.spec.criterion_key
+        if crit is None:
+            rubric = self._llm_judge.spec.rubric or ""
+            crit = f"rubric:{rubric[:60]}{'…' if len(rubric) > 60 else ''}"
+        return {
+            "judge_model_spec": self._llm_judge.spec.judge_model_spec,
+            "criterion": crit,
+            "call_count": self._llm_judge.call_count(),
+            "total_usage": self._llm_judge.total_usage(),
+            "parse_failure_count": sum(
+                1 for e in log if e.get("parse_status") != "ok"
+            ),
+        }
 
 
 # ---------------------------------------------------------------------------

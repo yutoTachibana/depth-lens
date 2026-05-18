@@ -32,6 +32,7 @@ def _build_adapter(
     train_steps: int = 6000,
     save_checkpoint: str | None = None,
     compute_axis: str | None = None,
+    free_form: bool = False,
 ) -> ModelAdapter:
     """Construct an adapter from a CLI --model spec.
 
@@ -42,6 +43,12 @@ def _build_adapter(
 
     `compute_axis` is currently only honored by vLLM (`reasoning_effort` vs
     `max_tokens`). Other adapters ignore it.
+
+    `free_form` (when True) switches Anthropic / OpenAI / Gemini / vLLM
+    adapters to a permissive system prompt that does NOT request a
+    `Final answer: ...` format. Use for open-ended tasks (summaries,
+    free-form replies) typically scored by an LLM-as-judge scorer.
+    OpenMythos / HF adapters ignore it (they don't apply that prompt).
     """
     if model_spec == "openmythos":
         from depth_lens.adapters.openmythos_adapter import (
@@ -78,22 +85,25 @@ def _build_adapter(
         from depth_lens.adapters.anthropic_adapter import AnthropicAdapter
 
         model = model_spec[len("anthropic:"):]
-        click.echo(f"[anthropic] using {model} via API")
-        return AnthropicAdapter(model=model, task_name=task_name)
+        click.echo(f"[anthropic] using {model} via API"
+                   + (" (free-form)" if free_form else ""))
+        return AnthropicAdapter(model=model, task_name=task_name, free_form=free_form)
 
     if model_spec.startswith("openai:"):
         from depth_lens.adapters.openai_adapter import OpenAIAdapter
 
         model = model_spec[len("openai:"):]
-        click.echo(f"[openai] using {model} via API")
-        return OpenAIAdapter(model=model, task_name=task_name)
+        click.echo(f"[openai] using {model} via API"
+                   + (" (free-form)" if free_form else ""))
+        return OpenAIAdapter(model=model, task_name=task_name, free_form=free_form)
 
     if model_spec.startswith("gemini:"):
         from depth_lens.adapters.gemini_adapter import GeminiAdapter
 
         model = model_spec[len("gemini:"):]
-        click.echo(f"[gemini] using {model} via API")
-        return GeminiAdapter(model=model, task_name=task_name)
+        click.echo(f"[gemini] using {model} via API"
+                   + (" (free-form)" if free_form else ""))
+        return GeminiAdapter(model=model, task_name=task_name, free_form=free_form)
 
     if model_spec.startswith("vllm:"):
         from depth_lens.adapters.vllm_adapter import VLLMAdapter
@@ -101,12 +111,14 @@ def _build_adapter(
         model = model_spec[len("vllm:"):]
         base_url = os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1")
         axis = compute_axis or "reasoning_effort"
-        click.echo(f"[vllm] using {model} at {base_url} (compute_axis={axis})")
+        click.echo(f"[vllm] using {model} at {base_url} (compute_axis={axis})"
+                   + (" (free-form)" if free_form else ""))
         return VLLMAdapter(
             model=model,
             task_name=task_name,
             base_url=base_url,
             compute_axis=axis,
+            free_form=free_form,
         )
 
     raise click.UsageError(
@@ -218,6 +230,14 @@ def cli():
          "models (DeepSeek-R1-Distill, Qwen-Thinking); 'max_tokens' for "
          "non-thinking models (Llama-3-8B-Instruct). Default: reasoning_effort.",
 )
+@click.option(
+    "--free-form", is_flag=True, default=False,
+    help="Switch the model adapter to a permissive system prompt for "
+         "open-ended generation tasks (summaries, free-form replies). "
+         "Skips the 'Final answer: ...' format request and the post-hoc "
+         "extraction. Pair with an `llm:` scorer for end-to-end open-ended "
+         "evaluation.",
+)
 def probe_cmd(
     model: str,
     task: str,
@@ -233,6 +253,7 @@ def probe_cmd(
     train_steps: int,
     save_checkpoint: str | None,
     compute_axis: str | None,
+    free_form: bool,
 ):
     """Run a depth × compute probe for one model."""
     depths_list = [int(x) for x in depths.split(",") if x.strip()]
@@ -244,6 +265,7 @@ def probe_cmd(
         train_steps=train_steps,
         save_checkpoint=save_checkpoint,
         compute_axis=compute_axis,
+        free_form=free_form,
     )
 
     compute_grid = _parse_compute(compute, adapter.compute_axis_name)
@@ -258,14 +280,20 @@ def probe_cmd(
         seed=seed,
     )
 
-    from depth_lens.viz import plot_accuracy_curve, plot_accuracy_heatmap
-
-    click.echo(f"Curve plot: {plot_accuracy_curve(result, Path(plot))}")
-    if heatmap:
-        click.echo(f"Heatmap:    {plot_accuracy_heatmap(result, Path(heatmap))}")
+    # Save JSON first so a plot error doesn't lose the run's data.
     if save_json:
         _dump_result_json(result, Path(save_json))
         click.echo(f"JSON:       {save_json}")
+
+    from depth_lens.viz import plot_accuracy_curve, plot_accuracy_heatmap
+
+    try:
+        click.echo(f"Curve plot: {plot_accuracy_curve(result, Path(plot))}")
+        if heatmap:
+            click.echo(f"Heatmap:    {plot_accuracy_heatmap(result, Path(heatmap))}")
+    except Exception as e:
+        click.echo(f"  [warn] plotting failed: {type(e).__name__}: {e}")
+        click.echo(f"  Result data is still saved" + (f" to {save_json}" if save_json else ""))
 
     eff = result.effective_depth(0.5)
     click.echo("")
@@ -320,6 +348,11 @@ def probe_cmd(
 @click.option("--checkpoint", default=None, type=click.Path(dir_okay=False),
               help="OpenMythos checkpoint to load (applies only to 'openmythos').")
 @click.option("--train-steps", default=4000, type=int)
+@click.option(
+    "--free-form", is_flag=True, default=False,
+    help="Switch model adapters to a permissive system prompt for open-ended "
+         "tasks. Use with an `llm:` scorer.",
+)
 def compare_cmd(
     models: str,
     task: str,
@@ -333,6 +366,7 @@ def compare_cmd(
     save_json: str | None,
     checkpoint: str | None,
     train_steps: int,
+    free_form: bool,
 ):
     """Probe multiple models and overlay their accuracy-vs-compute curves."""
     depths_list = [int(x) for x in depths.split(",") if x.strip()]
@@ -350,6 +384,7 @@ def compare_cmd(
             task,
             checkpoint=checkpoint if spec == "openmythos" else None,
             train_steps=train_steps,
+            free_form=free_form,
         )
         compute_grid = _parse_compute(compute, adapter.compute_axis_name)
         r = probe(
@@ -473,6 +508,13 @@ def dashboard_cmd(port: int):
          "Use 'max_tokens' when including an instruct-only model like "
          "Llama-3-8B-Instruct (it does not accept reasoning_effort).",
 )
+@click.option(
+    "--free-form", is_flag=True, default=False,
+    help="Switch model adapters to a permissive system prompt for open-ended "
+         "tasks (free-form replies, summaries). Required when pairing with an "
+         "`llm:` scorer for an open-ended task. See "
+         "docs/findings/v2.1-llm-judge-case-study.md.",
+)
 def recommend_cmd(
     models: str,
     task: str,
@@ -487,6 +529,7 @@ def recommend_cmd(
     max_latency: float | None,
     gpu_hourly_rate: float | None,
     compute_axis: str | None,
+    free_form: bool,
 ):
     """
     Find the cheapest model + compute setting that meets your accuracy bar.
@@ -533,7 +576,7 @@ def recommend_cmd(
                 f"  [info] self-hosted spec — costing at ${spec_pricing['gpu_hourly']:.2f}/GPU-hour "
                 f"× {spec_pricing.get('gpus', 1)} GPU(s)"
             )
-        adapter = _build_adapter(spec, task, compute_axis=compute_axis)
+        adapter = _build_adapter(spec, task, compute_axis=compute_axis, free_form=free_form)
         compute_grid = _parse_compute(compute, adapter.compute_axis_name)
         r = probe(
             adapter=adapter,
@@ -649,6 +692,44 @@ def recommend_cmd(
                 f"  saves ${savings:.2f}/day = ${savings*365:,.0f}/year "
                 f"({(savings/mep_daily*100):.0f}% reduction)"
             )
+
+    # If an LLM-as-judge scorer was used, surface aggregate judge cost so
+    # the reader can correct the $/k-pred line in their head. The
+    # recommend table above only shows the *test model's* cost; the judge
+    # is a separate per-call expense scaling with n_samples × passing
+    # configs.
+    judge_summary = getattr(task_obj, "llm_judge_summary", lambda: None)()
+    if judge_summary:
+        click.echo("")
+        click.echo("=" * 92)
+        click.echo(
+            f"LLM-as-judge: {judge_summary['judge_model_spec']} "
+            f"({judge_summary['criterion']})"
+        )
+        usage = judge_summary["total_usage"]
+        click.echo(
+            f"  {judge_summary['call_count']} judge calls  ·  "
+            f"input={usage.get('input', 0):,} out={usage.get('output', 0):,}"
+            + (f" thinking={usage['thinking']:,}" if usage.get("thinking") else "")
+        )
+        # Try to compute judge cost from DEFAULT_PRICING (or pricing_override).
+        judge_price = get_pricing(judge_summary["judge_model_spec"], pricing_override)
+        if judge_price and "input" in judge_price:
+            tok_cost = (
+                usage.get("input", 0) * judge_price["input"]
+                + usage.get("output", 0) * judge_price["output"]
+            ) / 1_000_000.0
+            click.echo(f"  Total judge spend (this run): ${tok_cost:.3f}")
+        if judge_summary["parse_failure_count"]:
+            click.echo(
+                f"  ⚠ {judge_summary['parse_failure_count']} judge call(s) returned "
+                "no Score: line — counted as 0 (fail closed)"
+            )
+        click.echo(
+            "  Note: the $/k-pred column above is TEST-MODEL cost only. "
+            "Total per-call cost is test-model + judge cost; for this "
+            "bench they're separately surfaced for clarity."
+        )
 
 
 if __name__ == "__main__":

@@ -70,6 +70,7 @@ class GeminiAdapter(ModelAdapter):
         request_delay: float = 0.0,
         max_concurrent: int = 8,
         adapter_label: str | None = None,
+        free_form: bool = False,
     ):
         try:
             from google import genai
@@ -94,7 +95,14 @@ class GeminiAdapter(ModelAdapter):
         self._model = model
         self.name = adapter_label or f"gemini:{model}"
 
-        if task_name and task_name in _TASK_INSTRUCTIONS:
+        self._free_form = free_form
+        if free_form:
+            self._instructions = (
+                "Respond directly to the user's request. Do NOT include any "
+                "'Final answer:' label, meta-commentary, or preamble — output "
+                "only the answer itself."
+            )
+        elif task_name and task_name in _TASK_INSTRUCTIONS:
             self._instructions = _TASK_INSTRUCTIONS[task_name]
         else:
             self._instructions = (
@@ -154,7 +162,10 @@ class GeminiAdapter(ModelAdapter):
                     config=config,
                 )
                 text = getattr(resp, "text", "") or ""
-                final = _extract_final_answer(text)
+                if self._free_form:
+                    final = None  # skip extraction; full reply is the answer
+                else:
+                    final = _extract_final_answer(text)
                 # google-genai exposes usage as `usage_metadata`, not `usage`.
                 # Translate to the {input_tokens, output_tokens, thinking_tokens}
                 # shape that depth_lens.metrics._extract_token_usage recognizes,

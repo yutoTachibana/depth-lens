@@ -222,3 +222,147 @@ def test_get_task_default_scorer_is_exact():
 
     task = get_task(f"custom:{path}")
     assert task._scorer == "exact"
+
+
+def test_judge_total_usage_accumulates(monkeypatch):
+    """Each score_one call should add to total_usage() across all calls."""
+    from depth_lens.adapters.base import Prediction
+
+    captured: dict = {"usages": [
+        {"input_tokens": 100, "output_tokens": 30},
+        {"input_tokens": 110, "output_tokens": 25},
+        {"input_tokens": 120, "output_tokens": 40},
+    ]}
+
+    fake_adapter = MagicMock()
+    from depth_lens.adapters.base import ComputeLevel
+    fake_adapter.default_compute_grid = MagicMock(return_value=[ComputeLevel(0, "default")])
+    call_idx = {"n": 0}
+
+    def fake_predict(prompts, compute):
+        i = call_idx["n"]
+        call_idx["n"] += 1
+        return [Prediction(text="Score: 1", metadata={"usage": captured["usages"][i]})]
+
+    fake_adapter.predict = fake_predict
+    monkeypatch.setattr(
+        "depth_lens.adapters.get_adapter", lambda *a, **k: fake_adapter
+    )
+
+    scorer = LLMJudgeScorer.from_string("llm:openai:gpt-5-mini:correct")
+    for i in range(3):
+        scorer.score_one(prompt=f"Q{i}", target="A", prediction="B")
+
+    total = scorer.total_usage()
+    # Sum across all 3 calls
+    assert total["input"] == 100 + 110 + 120
+    assert total["output"] == 30 + 25 + 40
+    assert scorer.call_count() == 3
+
+
+def test_custom_task_judge_summary(monkeypatch):
+    """CustomTask.llm_judge_summary() exposes the spec, criterion, call count,
+    total usage, and parse-failure count for the recommend CLI to surface."""
+    from depth_lens.adapters.base import Prediction
+    from depth_lens.tasks.custom import CustomTask
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(json.dumps({"prompt": "Q1", "target": "A1", "depth": 1}) + "\n")
+        f.write(json.dumps({"prompt": "Q2", "target": "A2", "depth": 1}) + "\n")
+        path = f.name
+
+    # Two predictions: one scores 1 (ok parse), one has no Score line (fail closed)
+    call_idx = {"n": 0}
+
+    def fake_predict(prompts, compute):
+        i = call_idx["n"]
+        call_idx["n"] += 1
+        text = "Score: 1" if i == 0 else "(no score line here)"
+        return [Prediction(text=text, metadata={"usage": {"input_tokens": 50, "output_tokens": 10}})]
+
+    fake_adapter = MagicMock()
+    from depth_lens.adapters.base import ComputeLevel
+    fake_adapter.default_compute_grid = MagicMock(return_value=[ComputeLevel(0, "default")])
+    fake_adapter.predict = fake_predict
+    monkeypatch.setattr(
+        "depth_lens.adapters.get_adapter", lambda *a, **k: fake_adapter
+    )
+
+    task = CustomTask(path=path, scorer="llm:openai:gpt-5-mini:faithful")
+    insts = task.generate(depth=1, n_samples=2, seed=0)
+    task.score(insts[0], "pred1")
+    task.score(insts[1], "pred2")
+
+    summary = task.llm_judge_summary()
+    assert summary is not None
+    assert summary["judge_model_spec"] == "openai:gpt-5-mini"
+    assert summary["criterion"] == "faithful"
+    assert summary["call_count"] == 2
+    assert summary["total_usage"]["input"] == 100  # 50 + 50
+    assert summary["total_usage"]["output"] == 20  # 10 + 10
+    assert summary["parse_failure_count"] == 1  # the second call had no Score line
+
+
+def test_custom_task_judge_summary_none_for_non_judge_scorer():
+    """Non-llm scorers should return None from llm_judge_summary()."""
+    from depth_lens.tasks.custom import CustomTask
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(json.dumps({"prompt": "1+1=", "target": "2", "depth": 1}) + "\n")
+        path = f.name
+
+    task = CustomTask(path=path, scorer="first_int")
+    assert task.llm_judge_summary() is None
+
+
+def test_openai_adapter_free_form_skips_extraction(monkeypatch):
+    """In free_form mode, the OpenAI adapter must NOT strip the response to a
+    'Final answer:' line — the full reply is the answer."""
+    import sys
+    import types
+    fake = types.ModuleType("openai")
+
+    class FakeRateLimitError(Exception):
+        pass
+
+    class FakeAPIStatusError(Exception):
+        pass
+
+    class _Usage:
+        prompt_tokens = 50
+        completion_tokens = 80
+
+    class _Message:
+        content = "This is a multi-paragraph reply.\nNo 'Final answer:' marker here.\nThe model just answers directly."
+
+    class _Choice:
+        message = _Message()
+
+    class _Response:
+        choices = [_Choice()]
+        usage = _Usage()
+
+    class FakeClient:
+        def __init__(self, *a, **kw):
+            self.chat = MagicMock()
+            self.chat.completions = MagicMock()
+            self.chat.completions.create = MagicMock(return_value=_Response())
+
+    fake.OpenAI = FakeClient
+    fake.RateLimitError = FakeRateLimitError
+    fake.APIStatusError = FakeAPIStatusError
+    monkeypatch.setitem(sys.modules, "openai", fake)
+    monkeypatch.setenv("OPENAI_API_KEY", "stub")
+
+    from depth_lens.adapters.base import ComputeLevel
+    from depth_lens.adapters.openai_adapter import OpenAIAdapter
+
+    adapter = OpenAIAdapter(model="gpt-5-mini", task_name=None, free_form=True)
+    preds = adapter.predict(["Write a paragraph."], ComputeLevel(1, "effort=low"))
+    # Full text returned — no 'Final answer:' filter applied
+    assert preds[0].text.startswith("This is a multi-paragraph reply.")
+    assert "answers directly" in preds[0].text
