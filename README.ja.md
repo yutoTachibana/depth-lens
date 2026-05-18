@@ -8,7 +8,7 @@
 [![tests](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml/badge.svg)](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status: v1.2 alpha](https://img.shields.io/badge/status-v1.2%20alpha-green.svg)](#ステータス)
+[![Status: v2.0](https://img.shields.io/badge/status-v2.0-green.svg)](#ステータス)
 
 LLM を本番に載せているチームは、決まって同じ 3 つの判断に直面します。
 たいてい答えは「みんなが使ってるやつ」止まり。depth-lens は、その判断を
@@ -407,9 +407,10 @@ HuggingFace モデル限定で固定の operating point の math タスク overt
   コントリビュータドキュメント、JA 翻訳、GitHub Actions CI (lint + tests)
 - [x] **v1.1** ── OpenMythos head-to-head、cross-paradigm Pareto
 - [x] **v1.2** ── GPU-hour pricing 付き self-hosted vLLM を同じ Pareto に
-- [ ] **v1.0 release** ── PyPI 公開 (現状ソースから `pip install -e .` 可能)
+- [x] **v2.0** ── 3-paradigm FLOPs-vs-accuracy scaling law (Looped × vLLM × Token-CoT API)、`dict-lookup` タスク、`depth_lens.flops` モジュール、35 cell 完全計測 commit 済
+- [ ] **v2.1** ── PyPI 公開、code-generation タスク、追加 adapter (Bedrock / Groq / Together)
 
-ユニットテスト 92 件 pass。次の計画は [ROADMAP.md](./ROADMAP.md) を参照。
+ユニットテスト 100+ 件 pass。次の計画は [ROADMAP.md](./ROADMAP.md) を参照。
 
 ## インストール variants
 

@@ -8,7 +8,7 @@
 [![tests](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml/badge.svg)](https://github.com/yutoTachibana/depth-lens/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status: v1.2 alpha](https://img.shields.io/badge/status-v1.2%20alpha-green.svg)](#status)
+[![Status: v2.0](https://img.shields.io/badge/status-v2.0-green.svg)](#status)
 
 Production teams running LLMs face the same three decisions, and the
 typical answer is *"use whatever everyone else uses"*. depth-lens lets
@@ -420,9 +420,10 @@ vendor APIs.
   contributor docs, JA translation, GitHub Actions CI (lint + tests)
 - [x] **v1.1** — OpenMythos head-to-head; cross-paradigm Pareto
 - [x] **v1.2** — self-hosted vLLM with GPU-hour pricing on the same Pareto
-- [ ] **v1.0 release** — PyPI publish (you can already `pip install -e .` from source)
+- [x] **v2.0** — 3-paradigm FLOPs-vs-accuracy scaling law (Looped × vLLM × Token-CoT API), `dict-lookup` task, `depth_lens.flops` module, full 35-cell measurement run committed
+- [ ] **v2.1** — PyPI publish, code-generation task, more adapters (Bedrock / Groq / Together)
 
-92 unit tests passing. See [ROADMAP.md](./ROADMAP.md) for what's next.
+100+ unit tests passing. See [ROADMAP.md](./ROADMAP.md) for what's next.
 
 ## Install variants
 
