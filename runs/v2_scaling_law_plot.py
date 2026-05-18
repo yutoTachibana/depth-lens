@@ -71,11 +71,11 @@ def load_openmythos_points(task: str) -> list[dict]:
             n_loops = int(c["value"])
             accs = [d["accuracy"][di][ci] for di in range(len(d["depths"]))]
             best_acc = max(accs)
-            # Rough token estimate per call: shortest depth's prompt length.
-            tok = (d.get("tokens_per_cell") or [[None]])[0][ci]
-            # OpenMythos uses single-token output; we estimate input tokens
-            # from the longest prompt at the largest depth.
-            input_tok = 20 + d["depths"][-1] * 4   # heuristic, fine for FLOPs ranking
+            # OpenMythos uses single-token output; estimate input tokens from
+            # the longest prompt at the largest probed depth. This heuristic
+            # is sufficient for FLOPs ordering — the per-paradigm shape of
+            # the curve is what matters, not absolute placement.
+            input_tok = 20 + d["depths"][-1] * 4
             output_tok = 1
             f = estimate_flops_per_call(
                 "openmythos",
